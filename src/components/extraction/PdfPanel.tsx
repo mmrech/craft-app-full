@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { useExtraction } from "@/contexts/ExtractionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,6 @@ import { toast } from "sonner";
 import { Document, Page, pdfjs } from 'react-pdf';
 import { supabase } from "@/integrations/supabase/client";
 import DocumentLibrary from "./DocumentLibrary";
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 // Configure PDF.js worker for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
