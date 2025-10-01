@@ -143,45 +143,50 @@ const PdfPanel = () => {
       viewport: viewport
     }).promise;
 
-    // Render text layer with proper positioning
-    const textContent = await page.getTextContent();
-    setCurrentPageText(textContent);
-    
+    // Clear and prepare text layer
     const textLayer = textLayerRef.current;
     textLayer.innerHTML = '';
-    textLayer.style.width = `${viewport.width}px`;
-    textLayer.style.height = `${viewport.height}px`;
+    textLayer.style.setProperty('--scale-factor', scale.toString());
 
-    // Create properly positioned text spans using PDF.js coordinate system
-    textContent.items.forEach((item: any) => {
-      if (!item.str || item.str.trim() === '') return;
-      
+    // Get text content
+    const textContent = await page.getTextContent();
+    setCurrentPageText(textContent);
+
+    // Use PDF.js text layer builder for accurate positioning
+    const textLayerFrag = document.createDocumentFragment();
+    
+    textContent.items.forEach((item: any, index: number) => {
+      const str = item.str;
+      if (!str) return;
+
       const tx = item.transform;
-      const fontHeight = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
-      
-      // Calculate position in viewport coordinates
-      const x = tx[4];
-      const y = tx[5];
-      
+      const style = {
+        left: `${tx[4]}px`,
+        top: `${tx[5]}px`,
+        fontSize: `${Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3])}px`,
+        fontFamily: item.fontName
+      };
+
       const span = document.createElement('span');
-      span.textContent = item.str;
+      span.textContent = str;
       span.style.position = 'absolute';
-      span.style.left = `${x}px`;
-      span.style.top = `${viewport.height - y - fontHeight}px`;
-      span.style.fontSize = `${fontHeight}px`;
-      span.style.fontFamily = item.fontName || 'sans-serif';
-      
-      // Handle text scaling
-      if (tx[0] !== 0) {
-        const scaleX = Math.abs(tx[0] / fontHeight);
-        if (Math.abs(scaleX - 1) > 0.001) {
-          span.style.transform = `scaleX(${scaleX})`;
-          span.style.transformOrigin = '0 0';
-        }
+      span.style.left = style.left;
+      span.style.top = style.top;
+      span.style.fontSize = style.fontSize;
+      span.style.fontFamily = style.fontFamily;
+      span.style.whiteSpace = 'pre';
+      span.style.transformOrigin = '0% 0%';
+
+      // Apply text transformation matrix
+      if (tx[0] !== 0 || tx[1] !== 0 || tx[2] !== 0 || tx[3] !== 0) {
+        const angle = Math.atan2(tx[1], tx[0]);
+        span.style.transform = `matrix(${tx[0]}, ${tx[1]}, ${-tx[2]}, ${-tx[3]}, 0, 0) rotate(${angle}rad)`;
       }
-      
-      textLayer.appendChild(span);
+
+      textLayerFrag.appendChild(span);
     });
+
+    textLayer.appendChild(textLayerFrag);
   };
 
   useEffect(() => {
