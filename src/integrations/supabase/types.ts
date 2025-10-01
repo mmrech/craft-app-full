@@ -14,7 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      clinical_extractions: {
+        Row: {
+          coordinates: Json
+          created_at: string
+          document_id: string
+          extracted_text: string
+          field_name: string
+          id: string
+          method: string
+          page_number: number
+          step_number: number
+        }
+        Insert: {
+          coordinates: Json
+          created_at?: string
+          document_id: string
+          extracted_text: string
+          field_name: string
+          id?: string
+          method?: string
+          page_number: number
+          step_number: number
+        }
+        Update: {
+          coordinates?: Json
+          created_at?: string
+          document_id?: string
+          extracted_text?: string
+          field_name?: string
+          id?: string
+          method?: string
+          page_number?: number
+          step_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_extractions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          created_at: string
+          file_size: number | null
+          id: string
+          name: string
+          storage_path: string
+          total_pages: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_size?: number | null
+          id?: string
+          name: string
+          storage_path: string
+          total_pages?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_size?: number | null
+          id?: string
+          name?: string
+          storage_path?: string
+          total_pages?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
