@@ -3,7 +3,7 @@ import { useExtraction } from "@/contexts/ExtractionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, Upload, Library } from "lucide-react";
 import { toast } from "sonner";
 import * as pdfjsLib from 'pdfjs-dist';
@@ -257,20 +257,20 @@ const PdfPanel = () => {
           Upload PDF
         </Button>
 
-        <Sheet>
-          <SheetTrigger asChild>
+        <Dialog>
+          <DialogTrigger asChild>
             <Button size="sm" variant="secondary">
               <Library className="w-4 h-4 mr-2" />
               Library
             </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[400px]">
-            <SheetHeader>
-              <SheetTitle>PDF Library</SheetTitle>
-            </SheetHeader>
+          </DialogTrigger>
+          <DialogContent className="max-w-md max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>PDF Library</DialogTitle>
+            </DialogHeader>
             <DocumentLibrary onLoadDocument={loadFromLibrary} />
-          </SheetContent>
-        </Sheet>
+          </DialogContent>
+        </Dialog>
 
         <Button
           size="sm"
