@@ -124,7 +124,7 @@ const PdfPanel = () => {
   };
 
   const renderPage = async (pageNum: number) => {
-    if (!pdfDoc || !canvasRef.current) return;
+    if (!pdfDoc || !canvasRef.current || !containerRef.current) return;
 
     const page = await pdfDoc.getPage(pageNum);
     const viewport = page.getViewport({ scale });
@@ -142,7 +142,7 @@ const PdfPanel = () => {
       viewport: viewport
     }).promise;
 
-    // Extract text content for this page
+    // Extract text content for side panel and selection
     const textContent = await page.getTextContent();
     const pageText = textContent.items
       .map((item: any) => item.str)
@@ -150,6 +150,31 @@ const PdfPanel = () => {
       .replace(/\s+/g, ' ');
     
     setExtractedText(pageText);
+
+    // Create invisible text layer overlay for accurate selection
+    const textLayerDiv = containerRef.current.querySelector('.textLayer') as HTMLDivElement;
+    if (textLayerDiv) {
+      textLayerDiv.innerHTML = '';
+      textLayerDiv.style.width = `${viewport.width}px`;
+      textLayerDiv.style.height = `${viewport.height}px`;
+
+      textContent.items.forEach((item: any) => {
+        const tx = item.transform;
+        const fontHeight = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
+        
+        const span = document.createElement('span');
+        span.textContent = item.str;
+        span.style.position = 'absolute';
+        span.style.left = `${tx[4]}px`;
+        span.style.top = `${viewport.height - tx[5] - fontHeight}px`;
+        span.style.fontSize = `${fontHeight}px`;
+        span.style.fontFamily = item.fontName || 'sans-serif';
+        span.style.transform = `scaleX(${item.width / (span.textContent.length * fontHeight * 0.5)})`;
+        span.style.transformOrigin = '0 0';
+        
+        textLayerDiv.appendChild(span);
+      });
+    }
   };
 
   useEffect(() => {
@@ -298,7 +323,7 @@ const PdfPanel = () => {
 
       {/* PDF Viewer with Text Panel */}
       <div className="flex-1 flex overflow-hidden">
-        {/* PDF Image */}
+        {/* PDF Image with Overlay */}
         <div ref={containerRef} className="flex-1 overflow-auto bg-slate-700 p-4">
           {!pdfDoc ? (
             <div className="h-full flex items-center justify-center">
@@ -310,8 +335,12 @@ const PdfPanel = () => {
               </div>
             </div>
           ) : (
-            <div className="inline-block mx-auto bg-white shadow-lg">
+            <div className="inline-block mx-auto bg-white shadow-lg relative">
               <canvas ref={canvasRef} className="max-w-full" />
+              <div 
+                className="textLayer absolute top-0 left-0 pointer-events-auto"
+                onMouseUp={handleTextSelection}
+              />
             </div>
           )}
         </div>

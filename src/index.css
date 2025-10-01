@@ -115,4 +115,44 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Text layer for PDF selection */
+  .textLayer {
+    opacity: 0;
+    line-height: 1;
+    user-select: text;
+    cursor: text;
+  }
+
+  .textLayer:hover {
+    opacity: 0.05;
+  }
+
+  .textLayer span {
+    color: transparent;
+    white-space: pre;
+  }
+
+  .textLayer::selection,
+  .textLayer span::selection {
+    background: rgba(59, 130, 246, 0.3);
+  }
+
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
 }
