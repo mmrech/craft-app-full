@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Extraction {
   id: string;
@@ -74,17 +75,29 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
     addExtraction(extraction);
     
     // Save to database if document is tracked
-    if (currentDocumentId) {
-      const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.from('clinical_extractions').insert({
-        document_id: currentDocumentId,
-        step_number: currentStep + 1,
-        field_name: extraction.fieldName,
-        extracted_text: extraction.text,
-        page_number: extraction.page,
-        coordinates: extraction.coordinates,
-        method: extraction.method
-      });
+    if (!currentDocumentId) {
+      console.warn('No document ID set, skipping database save');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('clinical_extractions')
+        .insert({
+          document_id: currentDocumentId,
+          step_number: currentStep + 1,
+          field_name: extraction.fieldName,
+          extracted_text: extraction.text,
+          page_number: extraction.page,
+          coordinates: extraction.coordinates,
+          method: extraction.method
+        });
+
+      if (error) {
+        console.error('Error saving extraction:', error);
+      }
+    } catch (error) {
+      console.error('Error saving extraction:', error);
     }
   };
 
