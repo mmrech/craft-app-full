@@ -128,6 +128,7 @@ All colors MUST be HSL.
   forced-color-adjust: none;
   transform-origin: 0 0;
   caret-color: CanvasText;
+  z-index: 2;
 }
 
 .textLayer span {
@@ -136,11 +137,15 @@ All colors MUST be HSL.
   white-space: pre;
   cursor: text;
   transform-origin: 0% 0%;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .textLayer ::selection {
-  background: rgba(59, 130, 246, 0.3);
-  color: rgba(0, 0, 0, 0.87);
+  background: rgba(59, 130, 246, 0.4);
+  color: transparent;
 }
 
 .textLayer br::selection {

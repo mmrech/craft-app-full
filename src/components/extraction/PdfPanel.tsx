@@ -133,6 +133,8 @@ const PdfPanel = () => {
     // Render canvas
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
+    if (!context) return;
+    
     canvas.height = viewport.height;
     canvas.width = viewport.width;
 
@@ -150,16 +152,24 @@ const PdfPanel = () => {
     textLayer.style.width = `${viewport.width}px`;
     textLayer.style.height = `${viewport.height}px`;
 
-    // Manually render text spans for selection
+    // Create properly positioned text spans
     textContent.items.forEach((item: any) => {
-      const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      if (!item.str) return;
+      
+      const tx = item.transform;
+      const style = textContent.styles?.[item.fontName] || {};
+      
       const span = document.createElement('span');
       span.textContent = item.str;
       span.style.position = 'absolute';
       span.style.left = `${tx[4]}px`;
-      span.style.top = `${tx[5]}px`;
-      span.style.fontSize = `${Math.sqrt(tx[0] * tx[0] + tx[1] * tx[1])}px`;
-      span.style.fontFamily = item.fontName;
+      span.style.bottom = `${viewport.height - tx[5]}px`;
+      span.style.fontSize = `${tx[3]}px`;
+      span.style.fontFamily = item.fontName || 'sans-serif';
+      span.style.transform = `scaleX(${tx[0] / tx[3]})`;
+      span.style.transformOrigin = '0% 0%';
+      span.style.whiteSpace = 'pre';
+      
       textLayer.appendChild(span);
     });
   };
@@ -338,10 +348,14 @@ const PdfPanel = () => {
               ref={textLayerRef} 
               className="absolute top-0 left-0 textLayer"
               style={{ 
+                width: '100%',
+                height: '100%',
                 overflow: 'hidden',
-                opacity: 0.2,
+                opacity: 0.3,
                 lineHeight: 1,
-                pointerEvents: 'auto'
+                pointerEvents: 'auto',
+                userSelect: 'text',
+                cursor: 'text'
               }}
             />
             {/* Render extraction highlights */}
