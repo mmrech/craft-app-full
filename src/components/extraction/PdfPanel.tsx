@@ -3,10 +3,12 @@ import { useExtraction } from "@/contexts/ExtractionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { ChevronLeft, ChevronRight, Upload, Library } from "lucide-react";
 import { toast } from "sonner";
 import * as pdfjsLib from 'pdfjs-dist';
 import { supabase } from "@/integrations/supabase/client";
+import DocumentLibrary from "./DocumentLibrary";
 
 // Configure PDF.js worker - using unpkg CDN which has proper CORS
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -42,17 +44,8 @@ const PdfPanel = () => {
   const loadPDF = async (file: File) => {
     setIsLoading(true);
     try {
-      // Check if user is authenticated
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        toast.error('Please sign in to upload PDFs');
-        setIsLoading(false);
-        return;
-      }
-
-      // Upload to Supabase Storage
-      const fileName = `${user.id}/${Date.now()}_${file.name}`;
+      // Upload to Supabase Storage (no auth required with public policies)
+      const fileName = `${Date.now()}_${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from('pdf_documents')
         .upload(fileName, file);
@@ -73,7 +66,6 @@ const PdfPanel = () => {
       const { data: docData, error: dbError } = await supabase
         .from('documents')
         .insert({
-          user_id: user.id,
           name: file.name,
           storage_path: fileName,
           file_size: file.size,
@@ -97,6 +89,36 @@ const PdfPanel = () => {
     } catch (error) {
       console.error('Error loading PDF:', error);
       toast.error('Failed to load PDF');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadFromLibrary = async (doc: any) => {
+    setIsLoading(true);
+    try {
+      // Download from storage
+      const { data, error } = await supabase.storage
+        .from('pdf_documents')
+        .download(doc.storage_path);
+
+      if (error) throw error;
+
+      // Load PDF
+      const arrayBuffer = await data.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+
+      setPdfDoc(pdf);
+      setTotalPages(pdf.numPages);
+      setCurrentPage(1);
+      setCurrentDocumentName(doc.name);
+      setCurrentDocumentId(doc.id);
+      
+      toast.success(`Loaded: ${doc.name}`);
+    } catch (error) {
+      console.error('Error loading document:', error);
+      toast.error('Failed to load document');
     } finally {
       setIsLoading(false);
     }
@@ -232,8 +254,23 @@ const PdfPanel = () => {
           onClick={() => fileInputRef.current?.click()}
         >
           <Upload className="w-4 h-4 mr-2" />
-          Load PDF
+          Upload PDF
         </Button>
+
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button size="sm" variant="secondary">
+              <Library className="w-4 h-4 mr-2" />
+              Library
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-[400px]">
+            <SheetHeader>
+              <SheetTitle>PDF Library</SheetTitle>
+            </SheetHeader>
+            <DocumentLibrary onLoadDocument={loadFromLibrary} />
+          </SheetContent>
+        </Sheet>
 
         <Button
           size="sm"
