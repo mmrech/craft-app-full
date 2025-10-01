@@ -6,17 +6,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, Upload, Library } from "lucide-react";
 import { toast } from "sonner";
-import * as pdfjsLib from 'pdfjs-dist';
+import { Document, Page, pdfjs } from 'react-pdf';
 import { supabase } from "@/integrations/supabase/client";
 import DocumentLibrary from "./DocumentLibrary";
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 
-// Configure PDF.js worker - using unpkg CDN which has proper CORS
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+// Configure PDF.js worker for react-pdf
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 const PdfPanel = () => {
   const {
-    pdfDoc,
-    setPdfDoc,
     currentPage,
     setCurrentPage,
     totalPages,
@@ -29,62 +29,45 @@ const PdfPanel = () => {
     updateFormData,
     currentDocumentName,
     setCurrentDocumentName,
-    currentDocumentId,
-    setCurrentDocumentId,
-    extractions
+    setCurrentDocumentId
   } = useExtraction();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [extractedText, setExtractedText] = useState<string>('');
+  const [pdfFile, setPdfFile] = useState<string | null>(null);
+  const [numPages, setNumPages] = useState<number>(0);
 
   const loadPDF = async (file: File) => {
     setIsLoading(true);
     try {
-      // Upload to Supabase Storage (no auth required with public policies)
-      const fileName = `${Date.now()}_${file.name}`;
-      const { error: uploadError } = await supabase.storage
+      const fileName = `${Date.now()}-${file.name}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('pdf_documents')
         .upload(fileName, file);
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        toast.error('Failed to upload PDF');
-        setIsLoading(false);
-        return;
-      }
+      if (uploadError) throw uploadError;
 
-      // Load PDF for display
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      
-      // Save document metadata to database
-      const { data: docData, error: dbError } = await supabase
+      const { data: { publicUrl } } = supabase.storage
+        .from('pdf_documents')
+        .getPublicUrl(fileName);
+
+      const { data: docData, error: docError } = await supabase
         .from('documents')
         .insert({
           name: file.name,
           storage_path: fileName,
           file_size: file.size,
-          total_pages: pdf.numPages
         })
         .select()
         .single();
 
-      if (dbError) {
-        console.error('Database error:', dbError);
-        toast.error('Failed to save document metadata');
-      } else {
-        setCurrentDocumentId(docData.id);
-      }
+      if (docError) throw docError;
 
-      setPdfDoc(pdf);
-      setTotalPages(pdf.numPages);
-      setCurrentPage(1);
+      setCurrentDocumentId(docData.id);
       setCurrentDocumentName(file.name);
-      toast.success('PDF uploaded and loaded successfully');
+      setPdfFile(publicUrl);
+      toast.success('PDF uploaded successfully');
     } catch (error) {
       console.error('Error loading PDF:', error);
       toast.error('Failed to load PDF');
@@ -96,92 +79,29 @@ const PdfPanel = () => {
   const loadFromLibrary = async (doc: any) => {
     setIsLoading(true);
     try {
-      // Download from storage
-      const { data, error } = await supabase.storage
+      const { data: { publicUrl } } = supabase.storage
         .from('pdf_documents')
-        .download(doc.storage_path);
+        .getPublicUrl(doc.storage_path);
 
-      if (error) throw error;
-
-      // Load PDF
-      const arrayBuffer = await data.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-
-      setPdfDoc(pdf);
-      setTotalPages(pdf.numPages);
-      setCurrentPage(1);
-      setCurrentDocumentName(doc.name);
       setCurrentDocumentId(doc.id);
-      
-      toast.success(`Loaded: ${doc.name}`);
+      setCurrentDocumentName(doc.name);
+      setPdfFile(publicUrl);
+      toast.success('PDF loaded from library');
     } catch (error) {
-      console.error('Error loading document:', error);
-      toast.error('Failed to load document');
+      console.error('Error loading PDF from library:', error);
+      toast.error('Failed to load PDF');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const renderPage = async (pageNum: number) => {
-    if (!pdfDoc || !canvasRef.current || !containerRef.current) return;
-
-    const page = await pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale });
-
-    // Render canvas
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
-
-    await page.render({
-      canvasContext: context,
-      viewport: viewport
-    }).promise;
-
-    // Extract text content for side panel and selection
-    const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .map((item: any) => item.str)
-      .join(' ')
-      .replace(/\s+/g, ' ');
-    
-    setExtractedText(pageText);
-
-    // Create invisible text layer overlay for accurate selection
-    const textLayerDiv = containerRef.current.querySelector('.textLayer') as HTMLDivElement;
-    if (textLayerDiv) {
-      textLayerDiv.innerHTML = '';
-      textLayerDiv.style.width = `${viewport.width}px`;
-      textLayerDiv.style.height = `${viewport.height}px`;
-
-      textContent.items.forEach((item: any) => {
-        const tx = item.transform;
-        const fontHeight = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
-        
-        const span = document.createElement('span');
-        span.textContent = item.str;
-        span.style.position = 'absolute';
-        span.style.left = `${tx[4]}px`;
-        span.style.top = `${viewport.height - tx[5] - fontHeight}px`;
-        span.style.fontSize = `${fontHeight}px`;
-        span.style.fontFamily = item.fontName || 'sans-serif';
-        span.style.transform = `scaleX(${item.width / (span.textContent.length * fontHeight * 0.5)})`;
-        span.style.transformOrigin = '0 0';
-        
-        textLayerDiv.appendChild(span);
-      });
-    }
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+    setTotalPages(numPages);
+    setCurrentPage(1);
+    setIsLoading(false);
   };
 
-  useEffect(() => {
-    if (pdfDoc) {
-      renderPage(currentPage);
-    }
-  }, [pdfDoc, currentPage, scale]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -229,7 +149,7 @@ const PdfPanel = () => {
       fieldName: activeField,
       text: selectedText,
       page: currentPage,
-      coordinates: { x: 0, y: 0, width: 0, height: 0 }, // Text-based extraction
+      coordinates: { x: 0, y: 0, width: 0, height: 0 },
       method: 'manual',
       documentName: currentDocumentName
     });
@@ -321,48 +241,33 @@ const PdfPanel = () => {
         </div>
       </div>
 
-      {/* PDF Viewer with Text Panel */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* PDF Image with Overlay */}
-        <div ref={containerRef} className="flex-1 overflow-auto bg-slate-700 p-4">
-          {!pdfDoc ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center bg-background p-12 rounded-lg border-2 border-dashed">
-                <h3 className="text-lg font-semibold mb-2">📄 Drop PDF file here or click to browse</h3>
-                <Button onClick={() => fileInputRef.current?.click()} variant="outline">
-                  Select PDF File
-                </Button>
-              </div>
+      {/* PDF Viewer */}
+      <div className="flex-1 overflow-auto bg-slate-700 p-4">
+        {!pdfFile ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center bg-background p-12 rounded-lg border-2 border-dashed">
+              <h3 className="text-lg font-semibold mb-2">📄 Drop PDF file here or click to browse</h3>
+              <Button onClick={() => fileInputRef.current?.click()} variant="outline">
+                Select PDF File
+              </Button>
             </div>
-          ) : (
-            <div className="inline-block mx-auto bg-white shadow-lg relative">
-              <canvas ref={canvasRef} className="max-w-full" />
-              <div 
-                className="textLayer absolute top-0 left-0 pointer-events-auto"
-                onMouseUp={handleTextSelection}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Extracted Text Panel */}
-        {pdfDoc && (
-          <div className="w-[400px] border-l border-border bg-background overflow-auto">
-            <div className="sticky top-0 bg-background border-b p-3 z-10">
-              <h3 className="font-semibold text-sm">Page {currentPage} Text</h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                Select text below to extract to fields
-              </p>
-            </div>
-            <div 
-              className="p-4 prose prose-sm max-w-none select-text cursor-text"
-              onMouseUp={handleTextSelection}
-              style={{ userSelect: 'text' }}
+          </div>
+        ) : (
+          <div className="flex justify-center" onMouseUp={handleTextSelection}>
+            <Document
+              file={pdfFile}
+              onLoadSuccess={onDocumentLoadSuccess}
+              loading={<div className="text-white p-4">Loading PDF...</div>}
+              error={<div className="text-red-400 p-4">Failed to load PDF</div>}
             >
-              <p className="whitespace-pre-wrap leading-relaxed text-sm">
-                {extractedText || 'Loading text...'}
-              </p>
-            </div>
+              <Page
+                pageNumber={currentPage}
+                scale={scale}
+                renderTextLayer={true}
+                renderAnnotationLayer={true}
+                className="shadow-2xl"
+              />
+            </Document>
           </div>
         )}
       </div>

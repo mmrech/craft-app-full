@@ -21,8 +21,6 @@ interface ExtractionContextType {
   setActiveFieldElement: (el: HTMLInputElement | HTMLTextAreaElement | null) => void;
   extractions: Extraction[];
   addExtraction: (extraction: Omit<Extraction, 'id' | 'timestamp'>) => void;
-  pdfDoc: any;
-  setPdfDoc: (doc: any) => void;
   currentPage: number;
   setCurrentPage: (page: number) => void;
   totalPages: number;
@@ -53,7 +51,7 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
   const [activeField, setActiveField] = useState<string | null>(null);
   const [activeFieldElement, setActiveFieldElement] = useState<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const [extractions, setExtractions] = useState<Extraction[]>([]);
-  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [scale, setScale] = useState(1);
@@ -116,8 +114,6 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
       extractions,
       addExtraction,
       saveExtraction,
-      pdfDoc,
-      setPdfDoc,
       currentPage,
       setCurrentPage,
       totalPages,
