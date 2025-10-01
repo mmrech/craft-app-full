@@ -143,7 +143,7 @@ const PdfPanel = () => {
       viewport: viewport
     }).promise;
 
-    // Render text layer for selection
+    // Render text layer with proper positioning
     const textContent = await page.getTextContent();
     setCurrentPageText(textContent);
     
@@ -152,23 +152,33 @@ const PdfPanel = () => {
     textLayer.style.width = `${viewport.width}px`;
     textLayer.style.height = `${viewport.height}px`;
 
-    // Create properly positioned text spans
+    // Create properly positioned text spans using PDF.js coordinate system
     textContent.items.forEach((item: any) => {
-      if (!item.str) return;
+      if (!item.str || item.str.trim() === '') return;
       
       const tx = item.transform;
-      const style = textContent.styles?.[item.fontName] || {};
+      const fontHeight = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
+      
+      // Calculate position in viewport coordinates
+      const x = tx[4];
+      const y = tx[5];
       
       const span = document.createElement('span');
       span.textContent = item.str;
       span.style.position = 'absolute';
-      span.style.left = `${tx[4]}px`;
-      span.style.bottom = `${viewport.height - tx[5]}px`;
-      span.style.fontSize = `${tx[3]}px`;
+      span.style.left = `${x}px`;
+      span.style.top = `${viewport.height - y - fontHeight}px`;
+      span.style.fontSize = `${fontHeight}px`;
       span.style.fontFamily = item.fontName || 'sans-serif';
-      span.style.transform = `scaleX(${tx[0] / tx[3]})`;
-      span.style.transformOrigin = '0% 0%';
-      span.style.whiteSpace = 'pre';
+      
+      // Handle text scaling
+      if (tx[0] !== 0) {
+        const scaleX = Math.abs(tx[0] / fontHeight);
+        if (Math.abs(scaleX - 1) > 0.001) {
+          span.style.transform = `scaleX(${scaleX})`;
+          span.style.transformOrigin = '0 0';
+        }
+      }
       
       textLayer.appendChild(span);
     });
@@ -351,7 +361,6 @@ const PdfPanel = () => {
                 width: '100%',
                 height: '100%',
                 overflow: 'hidden',
-                opacity: 0.3,
                 lineHeight: 1,
                 pointerEvents: 'auto',
                 userSelect: 'text',
