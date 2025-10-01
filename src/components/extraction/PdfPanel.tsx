@@ -7,8 +7,8 @@ import { ChevronLeft, ChevronRight, Upload, ZoomIn } from "lucide-react";
 import { toast } from "sonner";
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker - using unpkg CDN which has proper CORS
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 const PdfPanel = () => {
   const {
