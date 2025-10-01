@@ -22,13 +22,19 @@ const PdfPanel = () => {
     setScale,
     activeField,
     addExtraction,
-    activeFieldElement
+    activeFieldElement,
+    updateFormData,
+    currentDocumentName,
+    setCurrentDocumentName,
+    extractions
   } = useExtraction();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPageText, setCurrentPageText] = useState<any>(null);
 
   const loadPDF = async (file: File) => {
     setIsLoading(true);
@@ -40,6 +46,7 @@ const PdfPanel = () => {
       setPdfDoc(pdf);
       setTotalPages(pdf.numPages);
       setCurrentPage(1);
+      setCurrentDocumentName(file.name);
       toast.success('PDF loaded successfully');
     } catch (error) {
       console.error('Error loading PDF:', error);
@@ -50,11 +57,12 @@ const PdfPanel = () => {
   };
 
   const renderPage = async (pageNum: number) => {
-    if (!pdfDoc || !canvasRef.current) return;
+    if (!pdfDoc || !canvasRef.current || !textLayerRef.current) return;
 
     const page = await pdfDoc.getPage(pageNum);
     const viewport = page.getViewport({ scale });
 
+    // Render canvas
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
     canvas.height = viewport.height;
@@ -64,6 +72,28 @@ const PdfPanel = () => {
       canvasContext: context,
       viewport: viewport
     }).promise;
+
+    // Render text layer for selection
+    const textContent = await page.getTextContent();
+    setCurrentPageText(textContent);
+    
+    const textLayer = textLayerRef.current;
+    textLayer.innerHTML = '';
+    textLayer.style.width = `${viewport.width}px`;
+    textLayer.style.height = `${viewport.height}px`;
+
+    // Manually render text spans for selection
+    textContent.items.forEach((item: any) => {
+      const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      const span = document.createElement('span');
+      span.textContent = item.str;
+      span.style.position = 'absolute';
+      span.style.left = `${tx[4]}px`;
+      span.style.top = `${tx[5]}px`;
+      span.style.fontSize = `${Math.sqrt(tx[0] * tx[0] + tx[1] * tx[1])}px`;
+      span.style.fontFamily = item.fontName;
+      textLayer.appendChild(span);
+    });
   };
 
   useEffect(() => {
@@ -93,6 +123,50 @@ const PdfPanel = () => {
 
   const handleZoomChange = (value: string) => {
     setScale(parseFloat(value));
+  };
+
+  const handleTextSelection = () => {
+    if (!activeField || !activeFieldElement) {
+      toast.error('Please select a field first');
+      return;
+    }
+
+    const selection = window.getSelection();
+    if (!selection || selection.toString().trim() === '') return;
+
+    const selectedText = selection.toString().trim();
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const containerRect = containerRef.current?.getBoundingClientRect();
+
+    if (containerRect) {
+      const coordinates = {
+        x: (rect.left - containerRect.left) / scale,
+        y: (rect.top - containerRect.top) / scale,
+        width: rect.width / scale,
+        height: rect.height / scale
+      };
+
+      // Update form field
+      updateFormData(activeField, selectedText);
+      if (activeFieldElement) {
+        activeFieldElement.value = selectedText;
+        activeFieldElement.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      // Add extraction trace
+      addExtraction({
+        fieldName: activeField,
+        text: selectedText,
+        page: currentPage,
+        coordinates,
+        method: 'manual',
+        documentName: currentDocumentName
+      });
+
+      toast.success(`Extracted to ${activeField}`);
+      selection.removeAllRanges();
+    }
   };
 
   return (
@@ -175,8 +249,34 @@ const PdfPanel = () => {
             </div>
           </div>
         ) : (
-          <div className="inline-block mx-auto bg-white shadow-lg">
+          <div className="inline-block mx-auto bg-white shadow-lg relative" onMouseUp={handleTextSelection}>
             <canvas ref={canvasRef} className="max-w-full" />
+            <div 
+              ref={textLayerRef} 
+              className="absolute top-0 left-0 textLayer"
+              style={{ 
+                overflow: 'hidden',
+                opacity: 0.2,
+                lineHeight: 1,
+                pointerEvents: 'auto'
+              }}
+            />
+            {/* Render extraction highlights */}
+            {extractions
+              .filter(ext => ext.page === currentPage)
+              .map(ext => (
+                <div
+                  key={ext.id}
+                  className="absolute border-2 border-primary/50 bg-primary/10 pointer-events-none"
+                  style={{
+                    left: `${ext.coordinates.x * scale}px`,
+                    top: `${ext.coordinates.y * scale}px`,
+                    width: `${ext.coordinates.width * scale}px`,
+                    height: `${ext.coordinates.height * scale}px`,
+                  }}
+                  title={`${ext.fieldName}: ${ext.text}`}
+                />
+              ))}
           </div>
         )}
       </div>

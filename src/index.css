@@ -116,3 +116,33 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* PDF.js text layer styles for text selection */
+.textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+}
+
+.textLayer span {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.textLayer ::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: rgba(0, 0, 0, 0.87);
+}
+
+.textLayer br::selection {
+  background: transparent;
+}

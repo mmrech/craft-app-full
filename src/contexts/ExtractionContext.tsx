@@ -30,6 +30,8 @@ interface ExtractionContextType {
   setScale: (scale: number) => void;
   formData: Record<string, any>;
   updateFormData: (field: string, value: any) => void;
+  currentDocumentName: string;
+  setCurrentDocumentName: (name: string) => void;
 }
 
 const ExtractionContext = createContext<ExtractionContextType | undefined>(undefined);
@@ -52,6 +54,7 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
   const [totalPages, setTotalPages] = useState(0);
   const [scale, setScale] = useState(1);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [currentDocumentName, setCurrentDocumentName] = useState<string>('');
 
   const addExtraction = (extraction: Omit<Extraction, 'id' | 'timestamp'>) => {
     const newExtraction: Extraction = {
@@ -85,7 +88,9 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
       scale,
       setScale,
       formData,
-      updateFormData
+      updateFormData,
+      currentDocumentName,
+      setCurrentDocumentName
     }}>
       {children}
     </ExtractionContext.Provider>
