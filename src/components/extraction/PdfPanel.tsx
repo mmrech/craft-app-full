@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useExtraction } from "@/contexts/ExtractionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,15 @@ import DocumentLibrary from "./DocumentLibrary";
 
 // Configure PDF.js worker for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+interface TextItem {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontName: string;
+}
 
 const PdfPanel = () => {
   const {
@@ -27,13 +36,17 @@ const PdfPanel = () => {
     updateFormData,
     currentDocumentName,
     setCurrentDocumentName,
+    currentDocumentId,
     setCurrentDocumentId
   } = useExtraction();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [pdfFile, setPdfFile] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
+  const [pageTextItems, setPageTextItems] = useState<TextItem[]>([]);
+  const [isExtractingText, setIsExtractingText] = useState(false);
 
   const loadPDF = async (file: File) => {
     setIsLoading(true);
@@ -68,10 +81,29 @@ const PdfPanel = () => {
       setCurrentDocumentId(docData.id);
       setCurrentDocumentName(file.name);
       setPdfFile(signedUrlData.signedUrl);
+      
       toast.success('PDF uploaded successfully');
+      
+      // Trigger server-side text extraction
+      setIsExtractingText(true);
+      toast.info('Extracting text from PDF...');
+      
+      const { data, error: extractError } = await supabase.functions.invoke('extract-pdf-text', {
+        body: { documentId: docData.id, storagePath: fileName }
+      });
+
+      if (extractError) {
+        console.error('Extraction error:', extractError);
+        toast.error('Text extraction failed, but you can still view the PDF');
+      } else {
+        toast.success(`Text extracted from ${data.totalPages} pages`);
+      }
+      
+      setIsExtractingText(false);
     } catch (error) {
       console.error('Error loading PDF:', error);
       toast.error('Failed to load PDF');
+      setIsExtractingText(false);
     } finally {
       setIsLoading(false);
     }
@@ -105,6 +137,55 @@ const PdfPanel = () => {
     setCurrentPage(1);
     setIsLoading(false);
   };
+
+  // Load extracted text for current page
+  useEffect(() => {
+    const loadPageText = async () => {
+      if (!currentDocumentId || !currentPage) return;
+
+      const { data, error } = await supabase
+        .from('pdf_extractions')
+        .select('text_items')
+        .eq('document_id', currentDocumentId)
+        .eq('page_number', currentPage)
+        .single();
+
+      if (error) {
+        console.error('Error loading page text:', error);
+        setPageTextItems([]);
+        return;
+      }
+
+      if (data && Array.isArray(data.text_items)) {
+        setPageTextItems(data.text_items as unknown as TextItem[]);
+      } else {
+        setPageTextItems([]);
+      }
+    };
+
+    loadPageText();
+  }, [currentDocumentId, currentPage]);
+
+  // Render text layer overlay
+  useEffect(() => {
+    if (!textLayerRef.current || pageTextItems.length === 0) return;
+
+    const container = textLayerRef.current;
+    container.innerHTML = '';
+
+    pageTextItems.forEach((item) => {
+      const span = document.createElement('span');
+      span.textContent = item.text;
+      span.style.position = 'absolute';
+      span.style.left = `${item.x}px`;
+      span.style.top = `${item.y}px`;
+      span.style.fontSize = `${item.height}px`;
+      span.style.fontFamily = item.fontName || 'sans-serif';
+      span.style.whiteSpace = 'pre';
+      
+      container.appendChild(span);
+    });
+  }, [pageTextItems, scale]);
 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -257,21 +338,40 @@ const PdfPanel = () => {
             </div>
           </div>
         ) : (
-          <div className="flex justify-center" onMouseUp={handleTextSelection}>
-            <Document
-              file={pdfFile}
-              onLoadSuccess={onDocumentLoadSuccess}
-              loading={<div className="text-white p-4">Loading PDF...</div>}
-              error={<div className="text-red-400 p-4">Failed to load PDF</div>}
-            >
-              <Page
-                pageNumber={currentPage}
-                scale={scale}
-                renderTextLayer={true}
-                renderAnnotationLayer={true}
-                className="shadow-2xl"
+          <div className="flex justify-center relative">
+            {isExtractingText && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-lg z-10">
+                Extracting text from PDF...
+              </div>
+            )}
+            <div className="relative inline-block" onMouseUp={handleTextSelection}>
+              <Document
+                file={pdfFile}
+                onLoadSuccess={onDocumentLoadSuccess}
+                loading={<div className="text-white p-4">Loading PDF...</div>}
+                error={<div className="text-red-400 p-4">Failed to load PDF</div>}
+              >
+                <Page
+                  pageNumber={currentPage}
+                  scale={scale}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={true}
+                  className="shadow-2xl"
+                />
+              </Document>
+              
+              {/* Invisible text overlay for selection */}
+              <div
+                ref={textLayerRef}
+                className="absolute top-0 left-0 pointer-events-auto opacity-0 hover:opacity-5"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  userSelect: 'text',
+                  cursor: 'text',
+                }}
               />
-            </Document>
+            </div>
           </div>
         )}
       </div>

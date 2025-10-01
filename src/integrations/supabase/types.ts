@@ -91,6 +91,41 @@ export type Database = {
         }
         Relationships: []
       }
+      pdf_extractions: {
+        Row: {
+          created_at: string
+          document_id: string
+          full_text: string
+          id: string
+          page_number: number
+          text_items: Json
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          full_text: string
+          id?: string
+          page_number: number
+          text_items: Json
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          full_text?: string
+          id?: string
+          page_number?: number
+          text_items?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdf_extractions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

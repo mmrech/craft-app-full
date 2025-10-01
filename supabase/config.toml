@@ -1,1 +1,4 @@
 project_id = "nifzcgzljjembmifsmcn"
+
+[functions.extract-pdf-text]
+verify_jwt = false

@@ -116,20 +116,16 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 
-  /* Text layer for PDF selection */
   .textLayer {
-    opacity: 0;
+    color: transparent;
     line-height: 1;
     user-select: text;
     cursor: text;
   }
 
-  .textLayer:hover {
-    opacity: 0.05;
-  }
-
   .textLayer span {
     color: transparent;
+    position: absolute;
     white-space: pre;
   }
 
