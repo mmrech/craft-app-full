@@ -3,9 +3,10 @@ import { useExtraction } from "@/contexts/ExtractionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Upload, ZoomIn } from "lucide-react";
+import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
 import { toast } from "sonner";
 import * as pdfjsLib from 'pdfjs-dist';
+import { supabase } from "@/integrations/supabase/client";
 
 // Configure PDF.js worker - using unpkg CDN which has proper CORS
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -21,11 +22,13 @@ const PdfPanel = () => {
     scale,
     setScale,
     activeField,
-    addExtraction,
+    saveExtraction,
     activeFieldElement,
     updateFormData,
     currentDocumentName,
     setCurrentDocumentName,
+    currentDocumentId,
+    setCurrentDocumentId,
     extractions
   } = useExtraction();
 
@@ -39,15 +42,58 @@ const PdfPanel = () => {
   const loadPDF = async (file: File) => {
     setIsLoading(true);
     try {
+      // Check if user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error('Please sign in to upload PDFs');
+        setIsLoading(false);
+        return;
+      }
+
+      // Upload to Supabase Storage
+      const fileName = `${user.id}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('pdf_documents')
+        .upload(fileName, file);
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        toast.error('Failed to upload PDF');
+        setIsLoading(false);
+        return;
+      }
+
+      // Load PDF for display
       const arrayBuffer = await file.arrayBuffer();
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
       const pdf = await loadingTask.promise;
       
+      // Save document metadata to database
+      const { data: docData, error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          user_id: user.id,
+          name: file.name,
+          storage_path: fileName,
+          file_size: file.size,
+          total_pages: pdf.numPages
+        })
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        toast.error('Failed to save document metadata');
+      } else {
+        setCurrentDocumentId(docData.id);
+      }
+
       setPdfDoc(pdf);
       setTotalPages(pdf.numPages);
       setCurrentPage(1);
       setCurrentDocumentName(file.name);
-      toast.success('PDF loaded successfully');
+      toast.success('PDF uploaded and loaded successfully');
     } catch (error) {
       console.error('Error loading PDF:', error);
       toast.error('Failed to load PDF');
@@ -125,7 +171,7 @@ const PdfPanel = () => {
     setScale(parseFloat(value));
   };
 
-  const handleTextSelection = () => {
+  const handleTextSelection = async () => {
     if (!activeField || !activeFieldElement) {
       toast.error('Please select a field first');
       return;
@@ -154,8 +200,8 @@ const PdfPanel = () => {
         activeFieldElement.dispatchEvent(new Event('input', { bubbles: true }));
       }
 
-      // Add extraction trace
-      addExtraction({
+      // Add extraction trace and save to database
+      await saveExtraction({
         fieldName: activeField,
         text: selectedText,
         page: currentPage,

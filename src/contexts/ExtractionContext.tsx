@@ -32,6 +32,9 @@ interface ExtractionContextType {
   updateFormData: (field: string, value: any) => void;
   currentDocumentName: string;
   setCurrentDocumentName: (name: string) => void;
+  currentDocumentId: string | null;
+  setCurrentDocumentId: (id: string | null) => void;
+  saveExtraction: (extraction: Omit<Extraction, 'id' | 'timestamp'>) => Promise<void>;
 }
 
 const ExtractionContext = createContext<ExtractionContextType | undefined>(undefined);
@@ -55,6 +58,7 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
   const [scale, setScale] = useState(1);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [currentDocumentName, setCurrentDocumentName] = useState<string>('');
+  const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null);
 
   const addExtraction = (extraction: Omit<Extraction, 'id' | 'timestamp'>) => {
     const newExtraction: Extraction = {
@@ -63,6 +67,25 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
       timestamp: Date.now()
     };
     setExtractions(prev => [...prev, newExtraction]);
+  };
+
+  const saveExtraction = async (extraction: Omit<Extraction, 'id' | 'timestamp'>) => {
+    // Add to local state immediately
+    addExtraction(extraction);
+    
+    // Save to database if document is tracked
+    if (currentDocumentId) {
+      const { supabase } = await import('@/integrations/supabase/client');
+      await supabase.from('clinical_extractions').insert({
+        document_id: currentDocumentId,
+        step_number: currentStep + 1,
+        field_name: extraction.fieldName,
+        extracted_text: extraction.text,
+        page_number: extraction.page,
+        coordinates: extraction.coordinates,
+        method: extraction.method
+      });
+    }
   };
 
   const updateFormData = (field: string, value: any) => {
@@ -79,6 +102,7 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
       setActiveFieldElement,
       extractions,
       addExtraction,
+      saveExtraction,
       pdfDoc,
       setPdfDoc,
       currentPage,
@@ -90,7 +114,9 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
       formData,
       updateFormData,
       currentDocumentName,
-      setCurrentDocumentName
+      setCurrentDocumentName,
+      currentDocumentId,
+      setCurrentDocumentId
     }}>
       {children}
     </ExtractionContext.Provider>
