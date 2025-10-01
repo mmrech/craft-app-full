@@ -148,7 +148,7 @@ const PdfPanel = () => {
         .select('text_items')
         .eq('document_id', currentDocumentId)
         .eq('page_number', currentPage)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error loading page text:', error);
@@ -355,7 +355,7 @@ const PdfPanel = () => {
                   pageNumber={currentPage}
                   scale={scale}
                   renderTextLayer={false}
-                  renderAnnotationLayer={true}
+                  renderAnnotationLayer={false}
                   className="shadow-2xl"
                 />
               </Document>
