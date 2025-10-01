@@ -7,20 +7,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ChevronLeft, ChevronRight, Upload, Library } from "lucide-react";
 import { toast } from "sonner";
 import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { supabase } from "@/integrations/supabase/client";
 import DocumentLibrary from "./DocumentLibrary";
 
 // Configure PDF.js worker for react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
-interface TextItem {
-  text: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  fontName: string;
-}
 
 const PdfPanel = () => {
   const {
@@ -41,11 +35,9 @@ const PdfPanel = () => {
   } = useExtraction();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textLayerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [pdfFile, setPdfFile] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
-  const [pageTextItems, setPageTextItems] = useState<TextItem[]>([]);
   const [isExtractingText, setIsExtractingText] = useState(false);
 
   const loadPDF = async (file: File) => {
@@ -197,54 +189,6 @@ const PdfPanel = () => {
       .eq('id', currentDocumentId);
   };
 
-  // Load extracted text for current page
-  useEffect(() => {
-    const loadPageText = async () => {
-      if (!currentDocumentId || !currentPage) return;
-
-      const { data, error } = await supabase
-        .from('pdf_extractions')
-        .select('text_items')
-        .eq('document_id', currentDocumentId)
-        .eq('page_number', currentPage)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error loading page text:', error);
-        setPageTextItems([]);
-        return;
-      }
-
-      if (data && Array.isArray(data.text_items)) {
-        setPageTextItems(data.text_items as unknown as TextItem[]);
-      } else {
-        setPageTextItems([]);
-      }
-    };
-
-    loadPageText();
-  }, [currentDocumentId, currentPage]);
-
-  // Render text layer overlay
-  useEffect(() => {
-    if (!textLayerRef.current || pageTextItems.length === 0) return;
-
-    const container = textLayerRef.current;
-    container.innerHTML = '';
-
-    pageTextItems.forEach((item) => {
-      const span = document.createElement('span');
-      span.textContent = item.text;
-      span.style.position = 'absolute';
-      span.style.left = `${item.x}px`;
-      span.style.top = `${item.y}px`;
-      span.style.fontSize = `${item.height}px`;
-      span.style.fontFamily = item.fontName || 'sans-serif';
-      span.style.whiteSpace = 'pre';
-      
-      container.appendChild(span);
-    });
-  }, [pageTextItems, scale]);
 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -413,23 +357,11 @@ const PdfPanel = () => {
                 <Page
                   pageNumber={currentPage}
                   scale={scale}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
+                  renderTextLayer={true}
+                  renderAnnotationLayer={true}
                   className="shadow-2xl"
                 />
               </Document>
-              
-              {/* Invisible text overlay for selection */}
-              <div
-                ref={textLayerRef}
-                className="absolute top-0 left-0 pointer-events-auto opacity-0 hover:opacity-5"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  userSelect: 'text',
-                  cursor: 'text',
-                }}
-              />
             </div>
           </div>
         )}
