@@ -83,27 +83,9 @@ const PdfPanel = () => {
       setPdfFile(signedUrlData.signedUrl);
       
       toast.success('PDF uploaded successfully');
-      
-      // Trigger server-side text extraction
-      setIsExtractingText(true);
-      toast.info('Extracting text from PDF...');
-      
-      const { data, error: extractError } = await supabase.functions.invoke('extract-pdf-text', {
-        body: { documentId: docData.id, storagePath: fileName }
-      });
-
-      if (extractError) {
-        console.error('Extraction error:', extractError);
-        toast.error('Text extraction failed, but you can still view the PDF');
-      } else {
-        toast.success(`Text extracted from ${data.totalPages} pages`);
-      }
-      
-      setIsExtractingText(false);
     } catch (error) {
       console.error('Error loading PDF:', error);
       toast.error('Failed to load PDF');
-      setIsExtractingText(false);
     } finally {
       setIsLoading(false);
     }
@@ -131,11 +113,88 @@ const PdfPanel = () => {
     }
   };
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+  const onDocumentLoadSuccess = async ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setTotalPages(numPages);
     setCurrentPage(1);
     setIsLoading(false);
+    
+    // Extract text from all pages in the browser
+    if (currentDocumentId) {
+      setIsExtractingText(true);
+      toast.info('Extracting text from PDF...');
+      
+      try {
+        await extractAllPagesText(numPages);
+        toast.success(`Text extracted from ${numPages} pages`);
+      } catch (error) {
+        console.error('Extraction error:', error);
+        toast.error('Text extraction failed');
+      } finally {
+        setIsExtractingText(false);
+      }
+    }
+  };
+
+  const extractAllPagesText = async (totalPgs: number) => {
+    if (!pdfFile || !currentDocumentId) return;
+
+    const pdfjs = await import('pdfjs-dist');
+    const loadingTask = pdfjs.getDocument(pdfFile);
+    const pdf = await loadingTask.promise;
+
+    const extractions = [];
+
+    for (let pageNum = 1; pageNum <= totalPgs; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const viewport = page.getViewport({ scale: 1.0 });
+
+      const textItems = textContent.items.map((item: any) => {
+        const transform = item.transform;
+        const fontHeight = Math.sqrt(transform[2] * transform[2] + transform[3] * transform[3]);
+
+        return {
+          text: item.str,
+          x: transform[4],
+          y: viewport.height - transform[5] - fontHeight,
+          width: item.width,
+          height: fontHeight,
+          fontName: item.fontName,
+        };
+      });
+
+      const fullText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      extractions.push({
+        document_id: currentDocumentId,
+        page_number: pageNum,
+        text_items: textItems,
+        full_text: fullText,
+      });
+    }
+
+    // Save all extractions to database
+    const { error } = await supabase
+      .from('pdf_extractions')
+      .upsert(extractions, {
+        onConflict: 'document_id,page_number',
+      });
+
+    if (error) {
+      console.error('Failed to save extractions:', error);
+      throw error;
+    }
+
+    // Update document with total pages
+    await supabase
+      .from('documents')
+      .update({ total_pages: totalPgs })
+      .eq('id', currentDocumentId);
   };
 
   // Load extracted text for current page
