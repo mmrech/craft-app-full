@@ -46,9 +46,12 @@ const PdfPanel = () => {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      // Get signed URL for private bucket (valid for 1 hour)
+      const { data: signedUrlData, error: urlError } = await supabase.storage
         .from('pdf_documents')
-        .getPublicUrl(fileName);
+        .createSignedUrl(fileName, 3600);
+
+      if (urlError) throw urlError;
 
       const { data: docData, error: docError } = await supabase
         .from('documents')
@@ -64,7 +67,7 @@ const PdfPanel = () => {
 
       setCurrentDocumentId(docData.id);
       setCurrentDocumentName(file.name);
-      setPdfFile(publicUrl);
+      setPdfFile(signedUrlData.signedUrl);
       toast.success('PDF uploaded successfully');
     } catch (error) {
       console.error('Error loading PDF:', error);
@@ -77,13 +80,16 @@ const PdfPanel = () => {
   const loadFromLibrary = async (doc: any) => {
     setIsLoading(true);
     try {
-      const { data: { publicUrl } } = supabase.storage
+      // Get signed URL for private bucket (valid for 1 hour)
+      const { data: signedUrlData, error: urlError } = await supabase.storage
         .from('pdf_documents')
-        .getPublicUrl(doc.storage_path);
+        .createSignedUrl(doc.storage_path, 3600);
+
+      if (urlError) throw urlError;
 
       setCurrentDocumentId(doc.id);
       setCurrentDocumentName(doc.name);
-      setPdfFile(publicUrl);
+      setPdfFile(signedUrlData.signedUrl);
       toast.success('PDF loaded from library');
     } catch (error) {
       console.error('Error loading PDF from library:', error);
