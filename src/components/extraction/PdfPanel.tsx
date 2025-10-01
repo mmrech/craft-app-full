@@ -36,10 +36,9 @@ const PdfPanel = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const textLayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentPageText, setCurrentPageText] = useState<any>(null);
+  const [extractedText, setExtractedText] = useState<string>('');
 
   const loadPDF = async (file: File) => {
     setIsLoading(true);
@@ -125,7 +124,7 @@ const PdfPanel = () => {
   };
 
   const renderPage = async (pageNum: number) => {
-    if (!pdfDoc || !canvasRef.current || !textLayerRef.current) return;
+    if (!pdfDoc || !canvasRef.current) return;
 
     const page = await pdfDoc.getPage(pageNum);
     const viewport = page.getViewport({ scale });
@@ -143,50 +142,14 @@ const PdfPanel = () => {
       viewport: viewport
     }).promise;
 
-    // Clear and prepare text layer
-    const textLayer = textLayerRef.current;
-    textLayer.innerHTML = '';
-    textLayer.style.setProperty('--scale-factor', scale.toString());
-
-    // Get text content
+    // Extract text content for this page
     const textContent = await page.getTextContent();
-    setCurrentPageText(textContent);
-
-    // Use PDF.js text layer builder for accurate positioning
-    const textLayerFrag = document.createDocumentFragment();
+    const pageText = textContent.items
+      .map((item: any) => item.str)
+      .join(' ')
+      .replace(/\s+/g, ' ');
     
-    textContent.items.forEach((item: any, index: number) => {
-      const str = item.str;
-      if (!str) return;
-
-      const tx = item.transform;
-      const style = {
-        left: `${tx[4]}px`,
-        top: `${tx[5]}px`,
-        fontSize: `${Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3])}px`,
-        fontFamily: item.fontName
-      };
-
-      const span = document.createElement('span');
-      span.textContent = str;
-      span.style.position = 'absolute';
-      span.style.left = style.left;
-      span.style.top = style.top;
-      span.style.fontSize = style.fontSize;
-      span.style.fontFamily = style.fontFamily;
-      span.style.whiteSpace = 'pre';
-      span.style.transformOrigin = '0% 0%';
-
-      // Apply text transformation matrix
-      if (tx[0] !== 0 || tx[1] !== 0 || tx[2] !== 0 || tx[3] !== 0) {
-        const angle = Math.atan2(tx[1], tx[0]);
-        span.style.transform = `matrix(${tx[0]}, ${tx[1]}, ${-tx[2]}, ${-tx[3]}, 0, 0) rotate(${angle}rad)`;
-      }
-
-      textLayerFrag.appendChild(span);
-    });
-
-    textLayer.appendChild(textLayerFrag);
+    setExtractedText(pageText);
   };
 
   useEffect(() => {
@@ -219,47 +182,35 @@ const PdfPanel = () => {
   };
 
   const handleTextSelection = async () => {
+    const selection = window.getSelection();
+    if (!selection || selection.toString().trim() === '') return;
+    
     if (!activeField || !activeFieldElement) {
       toast.error('Please select a field first');
       return;
     }
 
-    const selection = window.getSelection();
-    if (!selection || selection.toString().trim() === '') return;
-
     const selectedText = selection.toString().trim();
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    const containerRect = containerRef.current?.getBoundingClientRect();
 
-    if (containerRect) {
-      const coordinates = {
-        x: (rect.left - containerRect.left) / scale,
-        y: (rect.top - containerRect.top) / scale,
-        width: rect.width / scale,
-        height: rect.height / scale
-      };
-
-      // Update form field
-      updateFormData(activeField, selectedText);
-      if (activeFieldElement) {
-        activeFieldElement.value = selectedText;
-        activeFieldElement.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-
-      // Add extraction trace and save to database
-      await saveExtraction({
-        fieldName: activeField,
-        text: selectedText,
-        page: currentPage,
-        coordinates,
-        method: 'manual',
-        documentName: currentDocumentName
-      });
-
-      toast.success(`Extracted to ${activeField}`);
-      selection.removeAllRanges();
+    // Update form field
+    updateFormData(activeField, selectedText);
+    if (activeFieldElement) {
+      activeFieldElement.value = selectedText;
+      activeFieldElement.dispatchEvent(new Event('input', { bubbles: true }));
     }
+
+    // Add extraction trace and save to database
+    await saveExtraction({
+      fieldName: activeField,
+      text: selectedText,
+      page: currentPage,
+      coordinates: { x: 0, y: 0, width: 0, height: 0 }, // Text-based extraction
+      method: 'manual',
+      documentName: currentDocumentName
+    });
+
+    toast.success(`Extracted to ${activeField}`);
+    selection.removeAllRanges();
   };
 
   return (
@@ -345,49 +296,44 @@ const PdfPanel = () => {
         </div>
       </div>
 
-      {/* PDF Container */}
-      <div ref={containerRef} className="flex-1 overflow-auto bg-slate-700 p-8">
-        {!pdfDoc ? (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center bg-background p-12 rounded-lg border-2 border-dashed">
-              <h3 className="text-lg font-semibold mb-2">📄 Drop PDF file here or click to browse</h3>
-              <Button onClick={() => fileInputRef.current?.click()} variant="outline">
-                Select PDF File
-              </Button>
+      {/* PDF Viewer with Text Panel */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* PDF Image */}
+        <div ref={containerRef} className="flex-1 overflow-auto bg-slate-700 p-4">
+          {!pdfDoc ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center bg-background p-12 rounded-lg border-2 border-dashed">
+                <h3 className="text-lg font-semibold mb-2">📄 Drop PDF file here or click to browse</h3>
+                <Button onClick={() => fileInputRef.current?.click()} variant="outline">
+                  Select PDF File
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="inline-block mx-auto bg-white shadow-lg relative" onMouseUp={handleTextSelection}>
-            <canvas ref={canvasRef} className="max-w-full" />
+          ) : (
+            <div className="inline-block mx-auto bg-white shadow-lg">
+              <canvas ref={canvasRef} className="max-w-full" />
+            </div>
+          )}
+        </div>
+
+        {/* Extracted Text Panel */}
+        {pdfDoc && (
+          <div className="w-[400px] border-l border-border bg-background overflow-auto">
+            <div className="sticky top-0 bg-background border-b p-3 z-10">
+              <h3 className="font-semibold text-sm">Page {currentPage} Text</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select text below to extract to fields
+              </p>
+            </div>
             <div 
-              ref={textLayerRef} 
-              className="absolute top-0 left-0 textLayer"
-              style={{ 
-                width: '100%',
-                height: '100%',
-                overflow: 'hidden',
-                lineHeight: 1,
-                pointerEvents: 'auto',
-                userSelect: 'text',
-                cursor: 'text'
-              }}
-            />
-            {/* Render extraction highlights */}
-            {extractions
-              .filter(ext => ext.page === currentPage)
-              .map(ext => (
-                <div
-                  key={ext.id}
-                  className="absolute border-2 border-primary/50 bg-primary/10 pointer-events-none"
-                  style={{
-                    left: `${ext.coordinates.x * scale}px`,
-                    top: `${ext.coordinates.y * scale}px`,
-                    width: `${ext.coordinates.width * scale}px`,
-                    height: `${ext.coordinates.height * scale}px`,
-                  }}
-                  title={`${ext.fieldName}: ${ext.text}`}
-                />
-              ))}
+              className="p-4 prose prose-sm max-w-none select-text cursor-text"
+              onMouseUp={handleTextSelection}
+              style={{ userSelect: 'text' }}
+            >
+              <p className="whitespace-pre-wrap leading-relaxed text-sm">
+                {extractedText || 'Loading text...'}
+              </p>
+            </div>
           </div>
         )}
       </div>
