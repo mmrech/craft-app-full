@@ -7,8 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ChevronLeft, ChevronRight, Upload, Library } from "lucide-react";
 import { toast } from "sonner";
 import { Document, Page, pdfjs } from 'react-pdf';
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { supabase } from "@/integrations/supabase/client";
 import DocumentLibrary from "./DocumentLibrary";
 
