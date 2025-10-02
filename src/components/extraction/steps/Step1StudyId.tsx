@@ -1,4 +1,5 @@
 import ExtractableField from "../ExtractableField";
+import { ValidatedField } from "../ValidatedField";
 import { AIExtractionButton } from "../AIExtractionButton";
 import { useExtraction } from "@/contexts/ExtractionContext";
 
@@ -29,13 +30,13 @@ const Step1StudyId = () => {
       />
 
       <div className="grid grid-cols-2 gap-4">
-        <ExtractableField name="doi" label="DOI" />
-        <ExtractableField name="pmid" label="PMID" />
+        <ValidatedField name="doi" label="DOI" placeholder="10.XXXX/..." />
+        <ValidatedField name="pmid" label="PMID" placeholder="12345678" />
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         <ExtractableField name="journal" label="Journal" />
-        <ExtractableField name="year" label="Year" type="number" />
+        <ValidatedField name="year" label="Year" type="number" placeholder="2024" />
         <ExtractableField name="country" label="Country" />
       </div>
 

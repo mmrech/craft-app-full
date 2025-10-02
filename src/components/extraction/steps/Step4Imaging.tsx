@@ -1,4 +1,5 @@
 import ExtractableField from "../ExtractableField";
+import { ValidatedField } from "../ValidatedField";
 import { AIExtractionButton } from "../AIExtractionButton";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,11 +27,12 @@ const Step4Imaging = () => {
       />
 
       <div className="grid grid-cols-2 gap-4">
-        <ExtractableField
+        <ValidatedField
           name="infarctVolume"
-          label="Infarct Volume"
+          label="Infarct Volume (mL)"
           type="number"
           step="0.1"
+          placeholder="25.5"
         />
         <ExtractableField
           name="strokeVolumeCerebellum"
