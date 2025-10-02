@@ -21,10 +21,11 @@ const ExtractableField = ({
   placeholder = "Click here then highlight in PDF",
   step
 }: ExtractableFieldProps) => {
-  const { activeField, setActiveField, setActiveFieldElement, formData, updateFormData } = useExtraction();
+  const { activeField, setActiveField, setActiveFieldElement, formData, updateFormData, validationErrors, validateField } = useExtraction();
   
   const isActive = activeField === name;
   const hasValue = formData[name];
+  const hasError = validationErrors[name];
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setActiveField(name);
@@ -32,7 +33,17 @@ const ExtractableField = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    updateFormData(name, e.target.value);
+    const value = e.target.value;
+    updateFormData(name, value);
+    if (required) {
+      validateField(name, value, required);
+    }
+  };
+
+  const handleBlur = () => {
+    if (required) {
+      validateField(name, formData[name], required);
+    }
   };
 
   const commonProps = {
@@ -41,12 +52,14 @@ const ExtractableField = ({
     value: formData[name] || '',
     onFocus: handleFocus,
     onChange: handleChange,
+    onBlur: handleBlur,
     placeholder,
     required,
     className: cn(
       "transition-all",
       isActive && "ring-2 ring-primary bg-orange-50 dark:bg-orange-950/20",
-      hasValue && "bg-green-50 dark:bg-green-950/20 border-green-500"
+      hasValue && !hasError && "bg-green-50 dark:bg-green-950/20 border-green-500",
+      hasError && "border-destructive focus:ring-destructive"
     )
   };
 
@@ -66,6 +79,9 @@ const ExtractableField = ({
           type={type}
           step={step}
         />
+      )}
+      {hasError && (
+        <p className="text-xs text-destructive font-medium">{hasError}</p>
       )}
     </div>
   );

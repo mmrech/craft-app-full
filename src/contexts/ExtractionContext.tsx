@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface Extraction {
   id: string;
@@ -34,6 +35,12 @@ interface ExtractionContextType {
   currentDocumentId: string | null;
   setCurrentDocumentId: (id: string | null) => void;
   saveExtraction: (extraction: Omit<Extraction, 'id' | 'timestamp'>) => Promise<void>;
+  validationErrors: Record<string, string>;
+  validateField: (fieldName: string, value: any, required?: boolean) => void;
+  clearValidation: (fieldName: string) => void;
+  stepCompletion: Record<number, number>;
+  getStepProgress: (step: number) => number;
+  requiredFields: Record<number, string[]>;
 }
 
 const ExtractionContext = createContext<ExtractionContextType | undefined>(undefined);
@@ -58,6 +65,91 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [currentDocumentName, setCurrentDocumentName] = useState<string>('');
   const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [stepCompletion, setStepCompletion] = useState<Record<number, number>>({});
+
+  // Define required fields per step
+  const requiredFields: Record<number, string[]> = {
+    0: ['citation'], // Step 1: Study ID
+    1: [], // Step 2: PICOT
+    2: [], // Step 3: Baseline
+    3: [], // Step 4: Imaging
+    4: [], // Step 5: Interventions
+    5: [], // Step 6: Study Arms
+    6: [], // Step 7: Outcomes
+    7: [], // Step 8: Complications
+  };
+
+  // Auto-save to localStorage every 30 seconds
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      if (Object.keys(formData).length > 0) {
+        try {
+          localStorage.setItem('extraction_draft', JSON.stringify({
+            formData,
+            currentStep,
+            timestamp: Date.now()
+          }));
+          console.log('Auto-saved at', new Date().toLocaleTimeString());
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        }
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, [formData, currentStep]);
+
+  // Load saved draft on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('extraction_draft');
+      if (saved) {
+        const { formData: savedData, currentStep: savedStep, timestamp } = JSON.parse(saved);
+        const hoursSinceLastSave = (Date.now() - timestamp) / (1000 * 60 * 60);
+        
+        if (hoursSinceLastSave < 24 && Object.keys(savedData).length > 0) {
+          toast.info('Draft recovered from last session', {
+            action: {
+              label: 'Restore',
+              onClick: () => {
+                setFormData(savedData);
+                setCurrentStep(savedStep);
+                toast.success('Draft restored successfully');
+              }
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load draft:', error);
+    }
+  }, []);
+
+  // Calculate step completion
+  useEffect(() => {
+    const newCompletion: Record<number, number> = {};
+    
+    Object.keys(requiredFields).forEach(stepKey => {
+      const step = parseInt(stepKey);
+      const fields = requiredFields[step];
+      
+      if (fields.length === 0) {
+        // No required fields, check if any data exists
+        const stepFieldsWithData = Object.keys(formData).filter(key => 
+          formData[key] && formData[key].toString().trim() !== ''
+        ).length;
+        newCompletion[step] = stepFieldsWithData > 0 ? 50 : 0; // Partial completion if any data
+      } else {
+        const completedFields = fields.filter(field => 
+          formData[field] && formData[field].toString().trim() !== ''
+        ).length;
+        newCompletion[step] = (completedFields / fields.length) * 100;
+      }
+    });
+    
+    setStepCompletion(newCompletion);
+  }, [formData]);
 
   const addExtraction = (extraction: Omit<Extraction, 'id' | 'timestamp'>) => {
     const newExtraction: Extraction = {
@@ -101,6 +193,32 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
 
   const updateFormData = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear validation error when field is updated
+    if (validationErrors[field]) {
+      clearValidation(field);
+    }
+  };
+
+  const validateField = (fieldName: string, value: any, required: boolean = false) => {
+    if (required && (!value || value.toString().trim() === '')) {
+      setValidationErrors(prev => ({ ...prev, [fieldName]: 'This field is required' }));
+      return false;
+    } else {
+      clearValidation(fieldName);
+      return true;
+    }
+  };
+
+  const clearValidation = (fieldName: string) => {
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[fieldName];
+      return newErrors;
+    });
+  };
+
+  const getStepProgress = (step: number): number => {
+    return stepCompletion[step] || 0;
   };
 
   return (
@@ -125,7 +243,13 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
       currentDocumentName,
       setCurrentDocumentName,
       currentDocumentId,
-      setCurrentDocumentId
+      setCurrentDocumentId,
+      validationErrors,
+      validateField,
+      clearValidation,
+      stepCompletion,
+      getStepProgress,
+      requiredFields
     }}>
       {children}
     </ExtractionContext.Provider>
