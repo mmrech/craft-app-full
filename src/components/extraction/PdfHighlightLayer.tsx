@@ -101,12 +101,12 @@ export const PdfHighlightLayer = ({
       // Skip if no valid coordinates
       if (coords.width === 0 && coords.height === 0) return;
 
-      // Scale coordinates to match PDF zoom
+      // Coordinates are already in canvas pixels (scaled)
       const rect = new Rect({
-        left: coords.x * scale,
-        top: coords.y * scale,
-        width: coords.width * scale,
-        height: coords.height * scale,
+        left: coords.x,
+        top: coords.y,
+        width: coords.width,
+        height: coords.height,
         fill: isHighlighted ? 'rgba(255, 193, 7, 0.3)' : 'rgba(59, 130, 246, 0.2)',
         stroke: isHighlighted ? '#FF9800' : '#3B82F6',
         strokeWidth: isHighlighted ? 3 : 2,
