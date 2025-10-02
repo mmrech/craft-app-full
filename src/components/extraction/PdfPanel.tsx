@@ -149,6 +149,21 @@ const PdfPanel = () => {
       setCurrentDocumentId(doc.id);
       setCurrentDocumentName(doc.name);
       setPdfFile(signedUrlData.signedUrl);
+      
+      // Load extracted text into formData for AI extraction
+      const { data: pdfExtractions } = await supabase
+        .from('pdf_extractions')
+        .select('full_text, page_number')
+        .eq('document_id', doc.id)
+        .order('page_number');
+
+      if (pdfExtractions && pdfExtractions.length > 0) {
+        const fullText = pdfExtractions
+          .map(e => e.full_text)
+          .join('\n\n');
+        updateFormData('_pdfFullText', fullText);
+      }
+      
       toast.success('PDF loaded from library');
     } catch (error) {
       console.error('Error loading PDF from library:', error);
@@ -174,6 +189,20 @@ const PdfPanel = () => {
       try {
         await extractAllPagesText(numPages);
         toast.success(`Successfully extracted text from ${numPages} pages`);
+        
+        // Load extracted text into formData for AI extraction
+        const { data: pdfExtractions } = await supabase
+          .from('pdf_extractions')
+          .select('full_text, page_number')
+          .eq('document_id', currentDocumentId)
+          .order('page_number');
+
+        if (pdfExtractions && pdfExtractions.length > 0) {
+          const fullText = pdfExtractions
+            .map(e => e.full_text)
+            .join('\n\n');
+          updateFormData('_pdfFullText', fullText);
+        }
       } catch (error: any) {
         console.error('Extraction error:', error);
         const errorMsg = error.message || 'Text extraction failed';
