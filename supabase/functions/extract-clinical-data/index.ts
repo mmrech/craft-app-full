@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { pdfText, extractionType, currentData } = await req.json();
+    const { pdfText, extractionType, currentData, pageImages } = await req.json();
     
     if (!pdfText) {
       throw new Error("PDF text is required");
@@ -22,10 +22,33 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log(`Processing ${extractionType} extraction request`);
+    console.log(`Processing ${extractionType} extraction with ${pageImages?.length || 0} page images`);
 
     const systemPrompt = getSystemPrompt(extractionType);
     const tools = getExtractionTools(extractionType);
+
+    // Enhanced prompt for vision processing
+    const enhancedPrompt = systemPrompt + 
+      "\n\nIMPORTANT: For each extracted field, return:\n" +
+      "1. value: The actual data extracted\n" +
+      "2. boundingBox: normalized coordinates [ymin, xmin, ymax, xmax] where the data appears\n" +
+      "3. pageNumber: which page contains this data (1-indexed)\n" +
+      "Return null for boundingBox and pageNumber if you cannot locate the exact position.";
+
+    // Build user message content with text and images
+    const userContent: any[] = [
+      { type: "text", text: `Extract clinical data from this document:\n\n${pdfText}` }
+    ];
+
+    // Add page images for vision processing
+    if (pageImages && pageImages.length > 0) {
+      pageImages.forEach((img: any) => {
+        userContent.push({
+          type: "image_url",
+          image_url: { url: img.imageBase64 }
+        });
+      });
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -36,8 +59,8 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Extract clinical data from this text:\n\n${pdfText}` }
+          { role: "system", content: enhancedPrompt },
+          { role: "user", content: userContent }
         ],
         tools,
         tool_choice: { type: "function", function: { name: tools[0].function.name } }
@@ -117,34 +140,57 @@ function getSystemPrompt(extractionType: string): string {
 }
 
 function getExtractionTools(extractionType: string) {
+  // Shared field schemas for vision-enabled extraction
+  const fieldSchema = {
+    type: "object",
+    properties: {
+      value: { type: "string" },
+      boundingBox: { 
+        type: "array", 
+        items: { type: "number" }, 
+        minItems: 4, 
+        maxItems: 4,
+        description: "Normalized [ymin, xmin, ymax, xmax]"
+      },
+      pageNumber: { type: "integer", description: "Page number (1-indexed)" }
+    },
+    required: ["value"]
+  };
+
+  const numFieldSchema = {
+    type: "object",
+    properties: {
+      value: { type: "number" },
+      boundingBox: { 
+        type: "array", 
+        items: { type: "number" }, 
+        minItems: 4, 
+        maxItems: 4 
+      },
+      pageNumber: { type: "integer" }
+    },
+    required: ["value"]
+  };
+
   const tools: Record<string, any> = {
     study_id: [{
       type: "function",
       function: {
         name: "extract_study_id",
-        description: "Extract study identification information",
+        description: "Extract study identification information with location data",
         parameters: {
           type: "object",
           properties: {
-            citation: { type: "string", description: "Full citation of the study" },
-            doi: { type: "string", description: "Digital Object Identifier (DOI)" },
-            pmid: { type: "string", description: "PubMed ID" },
-            journal: { type: "string", description: "Journal name" },
-            year: { type: "string", description: "Publication year" },
-            country: { type: "string", description: "Country of the study" },
-            centers: { type: "string", description: "Single or multi-center study" },
-            funding: { type: "string", description: "Funding sources" },
-            conflicts: { type: "string", description: "Conflicts of interest" },
-            registration: { type: "string", description: "Trial registration ID" },
-            confidence: {
-              type: "object",
-              description: "Confidence scores for each field (0-1)",
-              properties: {
-                citation: { type: "number" },
-                doi: { type: "number" },
-                journal: { type: "number" }
-              }
-            }
+            citation: fieldSchema,
+            doi: fieldSchema,
+            pmid: fieldSchema,
+            journal: fieldSchema,
+            year: fieldSchema,
+            country: fieldSchema,
+            centers: fieldSchema,
+            funding: fieldSchema,
+            conflicts: fieldSchema,
+            registration: fieldSchema
           },
           required: ["citation"],
           additionalProperties: false
@@ -156,24 +202,16 @@ function getExtractionTools(extractionType: string) {
       type: "function",
       function: {
         name: "extract_picot",
-        description: "Extract PICOT elements from clinical study",
+        description: "Extract PICOT elements with location data",
         parameters: {
           type: "object",
           properties: {
-            "eligibility-population": { type: "string", description: "Study population description" },
-            "eligibility-intervention": { type: "string", description: "Intervention or exposure" },
-            "eligibility-comparator": { type: "string", description: "Comparator or control" },
-            "eligibility-outcomes": { type: "string", description: "Primary and secondary outcomes" },
-            "eligibility-timing": { type: "string", description: "Study duration and follow-up" },
-            "eligibility-studyType": { type: "string", description: "Study type (RCT, cohort, etc.)" },
-            confidence: {
-              type: "object",
-              properties: {
-                "eligibility-population": { type: "number" },
-                "eligibility-intervention": { type: "number" },
-                "eligibility-outcomes": { type: "number" }
-              }
-            }
+            "eligibility-population": fieldSchema,
+            "eligibility-intervention": fieldSchema,
+            "eligibility-comparator": fieldSchema,
+            "eligibility-outcomes": fieldSchema,
+            "eligibility-timing": fieldSchema,
+            "eligibility-studyType": fieldSchema
           },
           required: ["eligibility-population", "eligibility-intervention", "eligibility-outcomes"],
           additionalProperties: false
@@ -185,27 +223,20 @@ function getExtractionTools(extractionType: string) {
       type: "function",
       function: {
         name: "extract_baseline",
-        description: "Extract baseline characteristics",
+        description: "Extract baseline characteristics with location data",
         parameters: {
           type: "object",
           properties: {
-            totalN: { type: "string", description: "Total sample size" },
-            surgicalN: { type: "string", description: "Surgical group sample size" },
-            controlN: { type: "string", description: "Control group sample size" },
-            meanAge: { type: "string", description: "Mean age" },
-            sdAge: { type: "string", description: "Standard deviation of age" },
-            totalMale: { type: "string", description: "Total male count" },
-            totalFemale: { type: "string", description: "Total female count" },
-            prestrokeMRS: { type: "string", description: "Pre-stroke Modified Rankin Scale" },
-            nihssMean: { type: "string", description: "Mean NIHSS score" },
-            gcsMean: { type: "string", description: "Mean GCS score" },
-            confidence: {
-              type: "object",
-              properties: {
-                totalN: { type: "number" },
-                meanAge: { type: "number" }
-              }
-            }
+            totalN: fieldSchema,
+            surgicalN: fieldSchema,
+            controlN: fieldSchema,
+            meanAge: fieldSchema,
+            sdAge: fieldSchema,
+            totalMale: fieldSchema,
+            totalFemale: fieldSchema,
+            prestrokeMRS: fieldSchema,
+            nihssMean: fieldSchema,
+            gcsMean: fieldSchema
           },
           additionalProperties: false
         }
@@ -216,25 +247,18 @@ function getExtractionTools(extractionType: string) {
       type: "function",
       function: {
         name: "extract_imaging_data",
-        description: "Extract imaging characteristics",
+        description: "Extract imaging characteristics with location data",
         parameters: {
           type: "object",
           properties: {
-            vascularTerritory: { type: "string", description: "Vascular territory affected" },
-            infarctVolume: { type: "number", description: "Infarct volume in mL" },
-            strokeVolumeCerebellum: { type: "string", description: "Stroke volume cerebellum" },
-            edemaDynamics: { type: "string", description: "Edema progression description" },
-            peakSwellingWindow: { type: "string", description: "Peak swelling time window" },
-            brainstemInvolvement: { type: "string", description: "Brainstem involvement (true/false/null)" },
-            supratentorialInvolvement: { type: "string", description: "Supratentorial involvement (true/false/null)" },
-            nonCerebellarStroke: { type: "string", description: "Non-cerebellar stroke (true/false/null)" },
-            confidence: {
-              type: "object",
-              properties: {
-                vascularTerritory: { type: "number" },
-                infarctVolume: { type: "number" }
-              }
-            }
+            vascularTerritory: fieldSchema,
+            infarctVolume: numFieldSchema,
+            strokeVolumeCerebellum: fieldSchema,
+            edemaDynamics: fieldSchema,
+            peakSwellingWindow: fieldSchema,
+            brainstemInvolvement: fieldSchema,
+            supratentorialInvolvement: fieldSchema,
+            nonCerebellarStroke: fieldSchema
           },
           additionalProperties: false
         }
