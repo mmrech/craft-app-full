@@ -160,21 +160,22 @@ function getExtractionTools(extractionType: string) {
         parameters: {
           type: "object",
           properties: {
-            population: { type: "string", description: "Study population description" },
-            intervention: { type: "string", description: "Intervention or exposure" },
-            comparator: { type: "string", description: "Comparator or control" },
-            outcome: { type: "string", description: "Primary and secondary outcomes" },
-            timing: { type: "string", description: "Study duration and follow-up" },
+            "eligibility-population": { type: "string", description: "Study population description" },
+            "eligibility-intervention": { type: "string", description: "Intervention or exposure" },
+            "eligibility-comparator": { type: "string", description: "Comparator or control" },
+            "eligibility-outcomes": { type: "string", description: "Primary and secondary outcomes" },
+            "eligibility-timing": { type: "string", description: "Study duration and follow-up" },
+            "eligibility-studyType": { type: "string", description: "Study type (RCT, cohort, etc.)" },
             confidence: {
               type: "object",
               properties: {
-                population: { type: "number" },
-                intervention: { type: "number" },
-                outcome: { type: "number" }
+                "eligibility-population": { type: "number" },
+                "eligibility-intervention": { type: "number" },
+                "eligibility-outcomes": { type: "number" }
               }
             }
           },
-          required: ["population", "intervention", "outcome"],
+          required: ["eligibility-population", "eligibility-intervention", "eligibility-outcomes"],
           additionalProperties: false
         }
       }
@@ -188,16 +189,21 @@ function getExtractionTools(extractionType: string) {
         parameters: {
           type: "object",
           properties: {
-            sampleSize: { type: "string", description: "Total sample size" },
-            age: { type: "string", description: "Age range or mean age" },
-            gender: { type: "string", description: "Gender distribution" },
-            inclusionCriteria: { type: "string", description: "Inclusion criteria" },
-            exclusionCriteria: { type: "string", description: "Exclusion criteria" },
+            totalN: { type: "string", description: "Total sample size" },
+            surgicalN: { type: "string", description: "Surgical group sample size" },
+            controlN: { type: "string", description: "Control group sample size" },
+            meanAge: { type: "string", description: "Mean age" },
+            sdAge: { type: "string", description: "Standard deviation of age" },
+            totalMale: { type: "string", description: "Total male count" },
+            totalFemale: { type: "string", description: "Total female count" },
+            prestrokeMRS: { type: "string", description: "Pre-stroke Modified Rankin Scale" },
+            nihssMean: { type: "string", description: "Mean NIHSS score" },
+            gcsMean: { type: "string", description: "Mean GCS score" },
             confidence: {
               type: "object",
               properties: {
-                sampleSize: { type: "number" },
-                age: { type: "number" }
+                totalN: { type: "number" },
+                meanAge: { type: "number" }
               }
             }
           },
