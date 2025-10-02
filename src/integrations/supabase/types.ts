@@ -114,6 +114,7 @@ export type Database = {
           document_id: string
           full_text: string
           id: string
+          page_image: string | null
           page_number: number
           text_items: Json
           user_id: string | null
@@ -123,6 +124,7 @@ export type Database = {
           document_id: string
           full_text: string
           id?: string
+          page_image?: string | null
           page_number: number
           text_items: Json
           user_id?: string | null
@@ -132,6 +134,7 @@ export type Database = {
           document_id?: string
           full_text?: string
           id?: string
+          page_image?: string | null
           page_number?: number
           text_items?: Json
           user_id?: string | null

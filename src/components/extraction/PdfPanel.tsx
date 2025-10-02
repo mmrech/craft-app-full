@@ -248,7 +248,7 @@ const PdfPanel = () => {
         try {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
-          const viewport = page.getViewport({ scale: 1.0 });
+          const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better image quality
 
           const textItems = textContent.items.map((item: any) => {
             const transform = item.transform;
@@ -270,11 +270,27 @@ const PdfPanel = () => {
             .replace(/\s+/g, ' ')
             .trim();
 
+          // Render page to canvas for image extraction
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          await page.render({
+            canvasContext: context!,
+            viewport: viewport
+          }).promise;
+
+          // Convert canvas to base64 JPEG (0.85 quality for balance between size and clarity)
+          const pageImage = canvas.toDataURL('image/jpeg', 0.85);
+
           extractions.push({
             document_id: currentDocumentId,
             page_number: pageNum,
             text_items: textItems,
             full_text: fullText,
+            page_image: pageImage,
           });
 
           // Update progress
