@@ -83,24 +83,41 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
     7: [], // Step 8: Complications
   };
 
-  // Auto-save to localStorage every 30 seconds
+  // Auto-save to localStorage with debouncing
   useEffect(() => {
-    const autoSaveInterval = setInterval(() => {
+    const autoSaveTimeout = setTimeout(() => {
       if (Object.keys(formData).length > 0) {
         try {
-          localStorage.setItem('extraction_draft', JSON.stringify({
+          const draftData = JSON.stringify({
             formData,
             currentStep,
             timestamp: Date.now()
-          }));
+          });
+          localStorage.setItem('extraction_draft', draftData);
           console.log('Auto-saved at', new Date().toLocaleTimeString());
-        } catch (error) {
+        } catch (error: any) {
           console.error('Auto-save failed:', error);
+          
+          // Handle localStorage quota exceeded
+          if (error.name === 'QuotaExceededError') {
+            toast.error('Storage quota exceeded. Some data may not be saved.');
+            // Try to clear old drafts
+            try {
+              const keys = Object.keys(localStorage);
+              keys.forEach(key => {
+                if (key.startsWith('extraction_draft_old')) {
+                  localStorage.removeItem(key);
+                }
+              });
+            } catch (clearError) {
+              console.error('Failed to clear old drafts:', clearError);
+            }
+          }
         }
       }
-    }, 30000); // 30 seconds
+    }, 2000); // Debounce: wait 2 seconds after last change
 
-    return () => clearInterval(autoSaveInterval);
+    return () => clearTimeout(autoSaveTimeout);
   }, [formData, currentStep]);
 
   // Load saved draft on mount

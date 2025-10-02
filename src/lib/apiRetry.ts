@@ -93,3 +93,85 @@ export function getErrorMessage(error: any): string {
 
   return error.message || 'An unexpected error occurred';
 }
+
+/**
+ * Determine if an error should trigger a retry
+ */
+export function shouldRetry(error: any, attempt: number, maxRetries: number): boolean {
+  // Don't retry if we've exhausted attempts
+  if (attempt >= maxRetries) return false;
+
+  // Always retry network errors
+  if (isNetworkError(error)) return true;
+
+  // Retry on specific status codes
+  if (error.response) {
+    const status = error.response.status;
+    // Retry on 5xx server errors, 408 timeout, 429 rate limit
+    return status >= 500 || status === 408 || status === 429;
+  }
+
+  return false;
+}
+
+/**
+ * Circuit Breaker to prevent cascading failures
+ * Opens after a threshold of failures, half-opens after a timeout, closes on success
+ */
+export class CircuitBreaker {
+  private failures = 0;
+  private lastFailureTime: number | null = null;
+  private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
+
+  constructor(
+    private threshold: number = 5,
+    private timeout: number = 60000 // 60 seconds
+  ) {}
+
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.state === 'OPEN') {
+      if (this.lastFailureTime && Date.now() - this.lastFailureTime >= this.timeout) {
+        this.state = 'HALF_OPEN';
+      } else {
+        throw new Error('Circuit breaker is OPEN. Service temporarily unavailable.');
+      }
+    }
+
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+
+  private onSuccess(): void {
+    this.failures = 0;
+    this.state = 'CLOSED';
+  }
+
+  private onFailure(): void {
+    this.failures++;
+    this.lastFailureTime = Date.now();
+
+    if (this.failures >= this.threshold) {
+      this.state = 'OPEN';
+      console.warn(`Circuit breaker opened after ${this.failures} failures`);
+    }
+  }
+
+  getState(): 'CLOSED' | 'OPEN' | 'HALF_OPEN' {
+    return this.state;
+  }
+
+  reset(): void {
+    this.failures = 0;
+    this.lastFailureTime = null;
+    this.state = 'CLOSED';
+  }
+}
+
+// Global circuit breaker for API calls
+export const apiCircuitBreaker = new CircuitBreaker(5, 60000);

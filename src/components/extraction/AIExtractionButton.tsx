@@ -21,7 +21,7 @@ export const AIExtractionButton = ({
   disabled = false 
 }: AIExtractionButtonProps) => {
   const [isExtracting, setIsExtracting] = useState(false);
-  const { updateFormData, formData } = useExtraction();
+  const { updateFormData } = useExtraction();
   const { toast } = useToast();
   const { isOnline } = useNetworkStatus();
 
@@ -103,55 +103,6 @@ export const AIExtractionButton = ({
     }
   };
 
-  const convertBoundingBox = async (
-    bbox: number[], 
-    pageNumber: number, 
-    documentId: string
-  ): Promise<{ x: number, y: number, width: number, height: number }> => {
-    try {
-      const { data: pdfPage } = await supabase
-        .from('pdf_extractions')
-        .select('text_items')
-        .eq('document_id', documentId)
-        .eq('page_number', pageNumber)
-        .maybeSingle();
-      
-      if (!pdfPage?.text_items) {
-        return { x: 0, y: 0, width: 0, height: 0 };
-      }
-      
-      const items = pdfPage.text_items as any[];
-      const pageWidth = Math.max(...items.map((item: any) => item.x + item.width));
-      const pageHeight = Math.max(...items.map((item: any) => item.y + item.height));
-      
-      const [ymin, xmin, ymax, xmax] = bbox;
-      
-      return {
-        x: xmin * pageWidth,
-        y: ymin * pageHeight,
-        width: (xmax - xmin) * pageWidth,
-        height: (ymax - ymin) * pageHeight
-      };
-    } catch (error) {
-      console.error('Error converting bounding box:', error);
-      return { x: 0, y: 0, width: 0, height: 0 };
-    }
-  };
-
-  const getStepNumber = (type: string): number => {
-    const stepMap: Record<string, number> = {
-      study_id: 1,
-      picot: 2,
-      baseline: 3,
-      imaging: 4,
-      interventions: 5,
-      study_arms: 6,
-      outcomes: 7,
-      complications: 8
-    };
-    return stepMap[type] || 1;
-  };
-
   const handleAIExtraction = async () => {
     if (!isOnline) {
       toast({
@@ -174,32 +125,12 @@ export const AIExtractionButton = ({
     setIsExtracting(true);
 
     try {
-      // Get current document ID from formData
-      const currentDocumentId = formData._currentDocumentId;
-      
-      if (!currentDocumentId) {
-        throw new Error('No document loaded');
-      }
-
-      // Fetch page images for vision processing
-      const { data: pageImages } = await supabase
-        .from('pdf_extractions')
-        .select('page_number, page_image')
-        .eq('document_id', currentDocumentId)
-        .order('page_number');
-
-      console.log(`Fetched ${pageImages?.length || 0} page images for vision processing`);
-
       const result = await retryWithBackoff(async () => {
         const { data, error } = await supabase.functions.invoke('extract-clinical-data', {
           body: { 
-            pdfText: pdfText.slice(0, 50000),
+            pdfText: pdfText.slice(0, 50000), // Limit to first 50k chars for initial extraction
             extractionType,
-            currentData: {},
-            pageImages: pageImages?.map(p => ({ 
-              pageNumber: p.page_number, 
-              imageBase64: p.page_image 
-            })) || []
+            currentData: {}
           }
         });
 
@@ -211,51 +142,32 @@ export const AIExtractionButton = ({
         throw new Error(result.error || "AI extraction failed");
       }
 
-      // Update form data and save extractions with bounding boxes
+      // Update form data with extracted values
       const extractedData = result.data;
-      let extractionCount = 0;
+      const confidence = extractedData.confidence || {};
 
-      for (const [key, rawValue] of Object.entries(extractedData)) {
-        // Handle nested structure (value, boundingBox, pageNumber)
-        const isStructured = rawValue && typeof rawValue === 'object' && 'value' in rawValue;
-        const fieldValue = isStructured ? (rawValue as any).value : rawValue;
-        const boundingBox = isStructured ? (rawValue as any).boundingBox : null;
-        const pageNumber = isStructured ? (rawValue as any).pageNumber : null;
-
-        // Update form
-        if (Array.isArray(fieldValue)) {
-          handleArrayData(key, fieldValue);
-          extractionCount++;
-        } else if (fieldValue != null) {
-          updateFormData(key, fieldValue);
-          extractionCount++;
-
-          // Save extraction with coordinates if available
-          if (boundingBox && pageNumber && currentDocumentId) {
-            try {
-              const coordinates = await convertBoundingBox(boundingBox, pageNumber, currentDocumentId);
-              
-              await supabase.from('clinical_extractions').insert({
-                document_id: currentDocumentId,
-                field_name: key,
-                extracted_text: String(fieldValue),
-                page_number: pageNumber,
-                coordinates: coordinates,
-                step_number: getStepNumber(extractionType),
-                method: 'ai'
-              });
-              
-              console.log(`Saved extraction for ${key} with bounding box on page ${pageNumber}`);
-            } catch (saveError) {
-              console.error(`Error saving extraction for ${key}:`, saveError);
-            }
+      Object.entries(extractedData).forEach(([key, value]) => {
+        if (key !== 'confidence' && value) {
+          // Handle array data types (for study arms, interventions, outcomes, complications)
+          if (Array.isArray(value)) {
+            handleArrayData(key, value);
+          } else {
+            updateFormData(key, value);
           }
         }
-      }
+      });
+
+      // Show confidence scores in toast
+      const confidenceValues = Object.values(confidence).filter((v): v is number => typeof v === 'number');
+      const avgConfidence = confidenceValues.length > 0
+        ? confidenceValues.reduce((a, b) => a + b, 0) / confidenceValues.length
+        : 0;
 
       toast({
         title: "AI Extraction Complete",
-        description: `Extracted ${extractionCount} fields with location data. Please review and confirm.`,
+        description: `Extracted ${Object.keys(extractedData).length - 1} fields ${
+          avgConfidence > 0 ? `(${(avgConfidence * 100).toFixed(0)}% confidence)` : ''
+        }. Please review and confirm.`,
       });
 
     } catch (error: any) {

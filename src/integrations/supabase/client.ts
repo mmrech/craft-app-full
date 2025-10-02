@@ -2,16 +2,36 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://nifzcgzljjembmifsmcn.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pZnpjZ3psamplbWJtaWZzbWNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyOTYyMzYsImV4cCI6MjA3NDg3MjIzNn0.xnQ01Ob1GfBLlwVDi5IQnL8WmVgkW5AdPg24Ca6MkSI";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  console.error('Missing Supabase environment variables. Please check your .env file.');
+  console.error('Required variables: VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY');
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
+export const supabase = createClient<Database>(
+  SUPABASE_URL || '',
+  SUPABASE_PUBLISHABLE_KEY || '',
+  {
+    auth: {
+      storage: localStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+    },
   }
-});
+);
+
+// Connection health check
+export const checkConnection = async (): Promise<boolean> => {
+  try {
+    const { error } = await supabase.from('clinical_extractions').select('count').limit(1);
+    return !error;
+  } catch (error) {
+    console.error('Supabase connection check failed:', error);
+    return false;
+  }
+};
