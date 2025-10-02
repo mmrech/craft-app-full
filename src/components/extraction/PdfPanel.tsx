@@ -350,15 +350,12 @@ const PdfPanel = () => {
             const firstRect = rects[0];
             const lastRect = rects[rects.length - 1];
             
-            // Calculate coordinates relative to PDF canvas, accounting for scroll
-            const scrollContainer = pdfCanvas.closest('.overflow-auto');
-            const scrollTop = scrollContainer?.scrollTop || 0;
-            const scrollLeft = scrollContainer?.scrollLeft || 0;
-            
-            // Transform viewport coordinates to PDF page coordinates
+            // Transform viewport coordinates to PDF canvas coordinates
+            // getBoundingClientRect() gives viewport positions, so the difference
+            // between selection and canvas positions gives us the position within the canvas
             coordinates = {
-              x: (firstRect.left - pdfRect.left + scrollLeft) / scale,
-              y: (firstRect.top - pdfRect.top + scrollTop) / scale,
+              x: (firstRect.left - pdfRect.left) / scale,
+              y: (firstRect.top - pdfRect.top) / scale,
               width: (lastRect.right - firstRect.left) / scale,
               height: (lastRect.bottom - firstRect.top) / scale,
             };
@@ -369,7 +366,6 @@ const PdfPanel = () => {
               scale,
               viewport: { left: firstRect.left, top: firstRect.top },
               pdfRect: { left: pdfRect.left, top: pdfRect.top },
-              scroll: { scrollTop, scrollLeft },
               finalCoords: coordinates
             });
           }
