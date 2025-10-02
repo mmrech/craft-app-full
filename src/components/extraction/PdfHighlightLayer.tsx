@@ -94,6 +94,10 @@ export const PdfHighlightLayer = ({
       return e.page === currentPage && (e.coordinates.x !== 0 || e.coordinates.y !== 0);
     });
 
+    // Get the scale ratio between canvas pixels and CSS pixels
+    const pageElement = pageRef.current?.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
+    const pixelRatio = pageElement ? pageElement.width / pageElement.clientWidth : 1;
+
     pageExtractions.forEach(extraction => {
       const isHighlighted = extraction.id === highlightedExtractionId;
       const coords = extraction.coordinates;
@@ -101,12 +105,12 @@ export const PdfHighlightLayer = ({
       // Skip if no valid coordinates
       if (coords.width === 0 && coords.height === 0) return;
 
-      // Coordinates are already in canvas pixels (scaled)
+      // Coordinates are in CSS pixels, need to scale to canvas pixels
       const rect = new Rect({
-        left: coords.x,
-        top: coords.y,
-        width: coords.width,
-        height: coords.height,
+        left: coords.x * pixelRatio,
+        top: coords.y * pixelRatio,
+        width: coords.width * pixelRatio,
+        height: coords.height * pixelRatio,
         fill: isHighlighted ? 'rgba(255, 193, 7, 0.3)' : 'rgba(59, 130, 246, 0.2)',
         stroke: isHighlighted ? '#FF9800' : '#3B82F6',
         strokeWidth: isHighlighted ? 3 : 2,
