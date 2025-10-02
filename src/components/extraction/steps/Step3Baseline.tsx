@@ -1,11 +1,23 @@
 import ExtractableField from "../ExtractableField";
+import { AIExtractionButton } from "../AIExtractionButton";
+import { useExtraction } from "@/contexts/ExtractionContext";
 
 const Step3Baseline = () => {
+  const { formData } = useExtraction();
+  const pdfText = formData._pdfFullText || "";
+
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold border-b-2 border-primary pb-2">
-        Step 3: Baseline
-      </h2>
+      <div className="flex items-center justify-between border-b-2 border-primary pb-2">
+        <h2 className="text-xl font-bold">
+          Step 3: Baseline
+        </h2>
+        <AIExtractionButton 
+          extractionType="baseline"
+          pdfText={pdfText}
+          label="AI Extract Baseline"
+        />
+      </div>
 
       <h3 className="text-base font-semibold mt-4">Sample Size</h3>
       <div className="grid grid-cols-3 gap-4">

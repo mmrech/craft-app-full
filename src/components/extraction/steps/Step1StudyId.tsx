@@ -1,11 +1,25 @@
 import ExtractableField from "../ExtractableField";
+import { AIExtractionButton } from "../AIExtractionButton";
+import { useExtraction } from "@/contexts/ExtractionContext";
 
 const Step1StudyId = () => {
+  const { formData } = useExtraction();
+  
+  // Get all PDF text from context (you'll need to add this to context)
+  const pdfText = formData._pdfFullText || "";
+
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold border-b-2 border-primary pb-2">
-        Step 1: Study ID
-      </h2>
+      <div className="flex items-center justify-between border-b-2 border-primary pb-2">
+        <h2 className="text-xl font-bold">
+          Step 1: Study ID
+        </h2>
+        <AIExtractionButton 
+          extractionType="study_id"
+          pdfText={pdfText}
+          label="AI Extract All"
+        />
+      </div>
 
       <ExtractableField
         name="citation"

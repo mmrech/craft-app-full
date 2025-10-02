@@ -1,16 +1,25 @@
 import ExtractableField from "../ExtractableField";
+import { AIExtractionButton } from "../AIExtractionButton";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useExtraction } from "@/contexts/ExtractionContext";
 
 const Step2PICOT = () => {
   const { formData, updateFormData } = useExtraction();
+  const pdfText = formData._pdfFullText || "";
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold border-b-2 border-primary pb-2">
-        Step 2: PICO-T
-      </h2>
+      <div className="flex items-center justify-between border-b-2 border-primary pb-2">
+        <h2 className="text-xl font-bold">
+          Step 2: PICO-T
+        </h2>
+        <AIExtractionButton 
+          extractionType="picot"
+          pdfText={pdfText}
+          label="AI Extract PICOT"
+        />
+      </div>
 
       <ExtractableField
         name="eligibility-population"
