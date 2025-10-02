@@ -469,7 +469,7 @@ const PdfPanel = () => {
       </div>
 
       {/* PDF Viewer */}
-      <div className="flex-1 overflow-auto bg-slate-700 p-4">
+      <div className="flex-1 overflow-auto bg-slate-700 p-4 flex flex-col">
         {!pdfFile ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center bg-background p-12 rounded-lg border-2 border-dashed">
@@ -480,7 +480,7 @@ const PdfPanel = () => {
             </div>
           </div>
         ) : (
-          <div className="flex justify-center relative">
+          <div className="relative w-full">
             {isExtractingText && (
               <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-6 py-3 rounded-lg shadow-lg z-10 min-w-[300px]">
                 <div className="text-sm font-medium mb-2 text-center">

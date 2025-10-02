@@ -145,7 +145,7 @@ export const PdfHighlightLayer = ({
   }, [extractions, currentPage, scale, highlightedExtractionId]);
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+    <div ref={containerRef} style={{ position: 'relative', display: 'block', width: 'fit-content', margin: '0 auto' }}>
       <div ref={pageRef} onMouseUp={onMouseUp} style={{ position: 'relative' }}>
         <Document
           file={file}
