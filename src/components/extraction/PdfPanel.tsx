@@ -58,12 +58,16 @@ const PdfPanel = () => {
 
       if (urlError) throw urlError;
 
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { data: docData, error: docError } = await supabase
         .from('documents')
         .insert({
           name: file.name,
           storage_path: fileName,
           file_size: file.size,
+          user_id: user.id,
         })
         .select()
         .single();

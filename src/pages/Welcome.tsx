@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ArrowRight, Shield, Zap, Database, CheckCircle2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/medical-hero.jpg";
 
 const Welcome = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/');
+    }
+  }, [user, loading, navigate]);
 
   const features = [
     {
@@ -61,7 +69,7 @@ const Welcome = () => {
               <Button 
                 size="lg" 
                 variant="medical"
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/auth")}
                 className="text-lg px-8"
               >
                 Get Started
@@ -144,7 +152,7 @@ const Welcome = () => {
             <Button 
               size="lg" 
               variant="secondary"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/auth")}
               className="text-lg px-8"
             >
               Start Extracting Data
