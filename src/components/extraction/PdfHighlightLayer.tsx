@@ -5,6 +5,7 @@ import { Document, Page } from "react-pdf";
 interface Extraction {
   id: string;
   fieldName: string;
+  page: number;
   coordinates: { x: number; y: number; width: number; height: number };
   method: 'manual' | 'markdown-search';
 }
@@ -90,8 +91,7 @@ export const PdfHighlightLayer = ({
 
     // Filter extractions for current page
     const pageExtractions = extractions.filter(e => {
-      // Assuming we need to match by some page data - for now using all since we don't have page in Extraction interface
-      return e.coordinates.x !== 0 || e.coordinates.y !== 0; // Only show extractions with real coordinates
+      return e.page === currentPage && (e.coordinates.x !== 0 || e.coordinates.y !== 0);
     });
 
     pageExtractions.forEach(extraction => {
