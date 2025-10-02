@@ -4,15 +4,60 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, FileText, CheckCircle2 } from "lucide-react";
+import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { documentUploadSchema } from "@/lib/validationSchemas";
 
 const UploadSection = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [validationError, setValidationError] = useState<string>("");
   const { toast } = useToast();
+  const { isOnline } = useNetworkStatus();
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setValidationError("");
+    
+    const result = documentUploadSchema.safeParse({ file });
+    
+    if (!result.success) {
+      const error = result.error.errors[0]?.message || "Invalid file";
+      setValidationError(error);
+      toast({
+        title: "Validation Error",
+        description: error,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedFile(file);
+  };
 
   const handleUpload = () => {
+    if (!selectedFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select a file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isOnline) {
+      toast({
+        title: "No internet connection",
+        description: "Please check your connection and try again",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(true);
     
     // Simulate upload and extraction process
@@ -22,10 +67,13 @@ const UploadSection = () => {
       
       toast({
         title: "Upload Successful",
-        description: "Document has been processed and data extracted successfully.",
+        description: `${selectedFile.name} has been processed and data extracted successfully.`,
       });
 
-      setTimeout(() => setUploadComplete(false), 3000);
+      setTimeout(() => {
+        setUploadComplete(false);
+        setSelectedFile(null);
+      }, 3000);
     }, 2000);
   };
 
@@ -66,28 +114,38 @@ const UploadSection = () => {
               <Input id="patient-id" placeholder="Enter patient ID" />
             </div>
 
-            <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-muted/30 transition-colors cursor-pointer">
+            <div className={`border-2 border-dashed rounded-lg p-8 text-center hover:bg-muted/30 transition-colors cursor-pointer ${
+              validationError ? 'border-destructive' : 'border-border'
+            }`}>
               <Input
                 type="file"
                 className="hidden"
                 id="file-upload"
-                accept=".pdf,.doc,.docx,.jpg,.png"
+                accept=".pdf"
+                onChange={handleFileChange}
               />
               <Label htmlFor="file-upload" className="cursor-pointer">
                 <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-sm font-medium text-foreground mb-2">
-                  Click to upload or drag and drop
+                  {selectedFile ? selectedFile.name : 'Click to upload or drag and drop'}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  PDF, DOC, DOCX, JPG, PNG (MAX. 10MB)
+                  PDF files only (MAX. 50MB)
                 </p>
               </Label>
             </div>
+            
+            {validationError && (
+              <div className="flex items-center gap-2 text-destructive text-sm">
+                <AlertCircle className="w-4 h-4" />
+                <span>{validationError}</span>
+              </div>
+            )}
           </div>
 
           <Button
             onClick={handleUpload}
-            disabled={uploading || uploadComplete}
+            disabled={uploading || uploadComplete || !selectedFile || !isOnline}
             className="w-full"
             size="lg"
           >
@@ -101,7 +159,7 @@ const UploadSection = () => {
             {!uploading && !uploadComplete && (
               <>
                 <Upload className="w-5 h-5 mr-2" />
-                Upload and Extract Data
+                {!isOnline ? 'Offline - Cannot Upload' : 'Upload and Extract Data'}
               </>
             )}
           </Button>

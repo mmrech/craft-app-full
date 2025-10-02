@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, Trash2, Download } from "lucide-react";
+import { FileText, Trash2, Download, AlertCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import { retryWithBackoff, getErrorMessage } from "@/lib/apiRetry";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 interface Document {
   id: string;
@@ -22,19 +24,38 @@ interface DocumentLibraryProps {
 const DocumentLibrary = ({ onLoadDocument }: DocumentLibraryProps) => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { isOnline } = useNetworkStatus();
 
   const loadDocuments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .order('created_at', { ascending: false });
+    if (!isOnline) {
+      setError('No internet connection. Please check your connection and try again.');
+      setLoading(false);
+      return;
+    }
 
-      if (error) throw error;
-      setDocuments(data || []);
-    } catch (error) {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const data = await retryWithBackoff(async () => {
+        const { data, error } = await supabase
+          .from('documents')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data || [];
+      });
+
+      setDocuments(data);
+    } catch (error: any) {
       console.error('Error loading documents:', error);
-      toast.error('Failed to load documents');
+      const errorMessage = getErrorMessage(error);
+      setError(errorMessage);
+      toast.error('Failed to load documents', {
+        description: errorMessage
+      });
     } finally {
       setLoading(false);
     }
@@ -42,32 +63,44 @@ const DocumentLibrary = ({ onLoadDocument }: DocumentLibraryProps) => {
 
   useEffect(() => {
     loadDocuments();
-  }, []);
+  }, [isOnline]);
 
   const handleDelete = async (doc: Document) => {
-    if (!confirm(`Delete "${doc.name}"?`)) return;
+    if (!confirm(`Delete "${doc.name}"? This action cannot be undone.`)) return;
+
+    if (!isOnline) {
+      toast.error('Cannot delete while offline', {
+        description: 'Please check your connection and try again.'
+      });
+      return;
+    }
 
     try {
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('pdf_documents')
-        .remove([doc.storage_path]);
+      await retryWithBackoff(async () => {
+        // Delete from storage
+        const { error: storageError } = await supabase.storage
+          .from('pdf_documents')
+          .remove([doc.storage_path]);
 
-      if (storageError) throw storageError;
+        if (storageError) throw storageError;
 
-      // Delete from database (this will cascade delete extractions)
-      const { error: dbError } = await supabase
-        .from('documents')
-        .delete()
-        .eq('id', doc.id);
+        // Delete from database (this will cascade delete extractions)
+        const { error: dbError } = await supabase
+          .from('documents')
+          .delete()
+          .eq('id', doc.id);
 
-      if (dbError) throw dbError;
+        if (dbError) throw dbError;
+      });
 
-      toast.success('Document deleted');
-      loadDocuments();
-    } catch (error) {
+      toast.success('Document deleted successfully');
+      await loadDocuments();
+    } catch (error: any) {
       console.error('Error deleting document:', error);
-      toast.error('Failed to delete document');
+      const errorMessage = getErrorMessage(error);
+      toast.error('Failed to delete document', {
+        description: errorMessage
+      });
     }
   };
 
@@ -79,8 +112,25 @@ const DocumentLibrary = ({ onLoadDocument }: DocumentLibraryProps) => {
 
   if (loading) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
+      <div className="flex items-center justify-center py-8 text-muted-foreground">
+        <RefreshCw className="w-5 h-5 animate-spin mr-2" />
         Loading documents...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4 p-4">
+        <div className="flex items-center gap-2 text-destructive">
+          <AlertCircle className="w-5 h-5" />
+          <p className="font-medium">Failed to load documents</p>
+        </div>
+        <p className="text-sm text-muted-foreground">{error}</p>
+        <Button onClick={loadDocuments} variant="outline" size="sm" disabled={!isOnline}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          {isOnline ? 'Try Again' : 'Offline'}
+        </Button>
       </div>
     );
   }
