@@ -100,6 +100,16 @@ function getSystemPrompt(extractionType: string): string {
     
     baseline: `You are a clinical research data extraction specialist. Extract baseline characteristics and demographics from the provided text. Include sample size, age, gender distribution, and inclusion/exclusion criteria.`,
     
+    imaging: `You are a clinical data extraction assistant. Extract imaging-related data from cerebellar stroke research articles. Focus on vascular territory, infarct volumes, edema dynamics, and involvement areas.`,
+    
+    interventions: `You are a clinical data extraction assistant. Extract surgical intervention data from cerebellar stroke research articles. Focus on surgical indications, intervention types, timing, and procedures.`,
+    
+    study_arms: `You are a clinical data extraction assistant. Extract study arm/group definitions from the research article. Focus on identifying comparison groups, their labels, and sample sizes.`,
+    
+    outcomes: `You are a clinical data extraction assistant. Extract outcome data including mortality and Modified Rankin Scale (mRS) scores from the research article. Focus on timepoints, arms, and specific measurements.`,
+    
+    complications: `You are a clinical data extraction assistant. Extract complication and predictor data from the research article. Focus on adverse events, predictors of outcome, and statistical associations.`,
+    
     full_study: `You are a clinical research data extraction specialist. Extract all major clinical study information including study ID, PICOT elements, baseline characteristics, interventions, and outcomes. Provide comprehensive extraction with confidence scores.`
   };
 
@@ -116,46 +126,16 @@ function getExtractionTools(extractionType: string) {
         parameters: {
           type: "object",
           properties: {
-            citation: {
-              type: "string",
-              description: "Full citation of the study"
-            },
-            doi: {
-              type: "string",
-              description: "Digital Object Identifier (DOI)"
-            },
-            pmid: {
-              type: "string",
-              description: "PubMed ID"
-            },
-            journal: {
-              type: "string",
-              description: "Journal name"
-            },
-            year: {
-              type: "string",
-              description: "Publication year"
-            },
-            country: {
-              type: "string",
-              description: "Country of the study"
-            },
-            centers: {
-              type: "string",
-              description: "Single or multi-center study"
-            },
-            funding: {
-              type: "string",
-              description: "Funding sources"
-            },
-            conflicts: {
-              type: "string",
-              description: "Conflicts of interest"
-            },
-            registration: {
-              type: "string",
-              description: "Trial registration ID"
-            },
+            citation: { type: "string", description: "Full citation of the study" },
+            doi: { type: "string", description: "Digital Object Identifier (DOI)" },
+            pmid: { type: "string", description: "PubMed ID" },
+            journal: { type: "string", description: "Journal name" },
+            year: { type: "string", description: "Publication year" },
+            country: { type: "string", description: "Country of the study" },
+            centers: { type: "string", description: "Single or multi-center study" },
+            funding: { type: "string", description: "Funding sources" },
+            conflicts: { type: "string", description: "Conflicts of interest" },
+            registration: { type: "string", description: "Trial registration ID" },
             confidence: {
               type: "object",
               description: "Confidence scores for each field (0-1)",
@@ -180,26 +160,11 @@ function getExtractionTools(extractionType: string) {
         parameters: {
           type: "object",
           properties: {
-            population: {
-              type: "string",
-              description: "Study population description"
-            },
-            intervention: {
-              type: "string",
-              description: "Intervention or exposure"
-            },
-            comparator: {
-              type: "string",
-              description: "Comparator or control"
-            },
-            outcome: {
-              type: "string",
-              description: "Primary and secondary outcomes"
-            },
-            timing: {
-              type: "string",
-              description: "Study duration and follow-up"
-            },
+            population: { type: "string", description: "Study population description" },
+            intervention: { type: "string", description: "Intervention or exposure" },
+            comparator: { type: "string", description: "Comparator or control" },
+            outcome: { type: "string", description: "Primary and secondary outcomes" },
+            timing: { type: "string", description: "Study duration and follow-up" },
             confidence: {
               type: "object",
               properties: {
@@ -223,31 +188,222 @@ function getExtractionTools(extractionType: string) {
         parameters: {
           type: "object",
           properties: {
-            sampleSize: {
-              type: "string",
-              description: "Total sample size"
-            },
-            age: {
-              type: "string",
-              description: "Age range or mean age"
-            },
-            gender: {
-              type: "string",
-              description: "Gender distribution"
-            },
-            inclusionCriteria: {
-              type: "string",
-              description: "Inclusion criteria"
-            },
-            exclusionCriteria: {
-              type: "string",
-              description: "Exclusion criteria"
-            },
+            sampleSize: { type: "string", description: "Total sample size" },
+            age: { type: "string", description: "Age range or mean age" },
+            gender: { type: "string", description: "Gender distribution" },
+            inclusionCriteria: { type: "string", description: "Inclusion criteria" },
+            exclusionCriteria: { type: "string", description: "Exclusion criteria" },
             confidence: {
               type: "object",
               properties: {
                 sampleSize: { type: "number" },
                 age: { type: "number" }
+              }
+            }
+          },
+          additionalProperties: false
+        }
+      }
+    }],
+    
+    imaging: [{
+      type: "function",
+      function: {
+        name: "extract_imaging_data",
+        description: "Extract imaging characteristics",
+        parameters: {
+          type: "object",
+          properties: {
+            vascularTerritory: { type: "string", description: "Vascular territory affected" },
+            infarctVolume: { type: "number", description: "Infarct volume in mL" },
+            strokeVolumeCerebellum: { type: "string", description: "Stroke volume cerebellum" },
+            edemaDynamics: { type: "string", description: "Edema progression description" },
+            peakSwellingWindow: { type: "string", description: "Peak swelling time window" },
+            brainstemInvolvement: { type: "string", description: "Brainstem involvement (true/false/null)" },
+            supratentorialInvolvement: { type: "string", description: "Supratentorial involvement (true/false/null)" },
+            nonCerebellarStroke: { type: "string", description: "Non-cerebellar stroke (true/false/null)" },
+            confidence: {
+              type: "object",
+              properties: {
+                vascularTerritory: { type: "number" },
+                infarctVolume: { type: "number" }
+              }
+            }
+          },
+          additionalProperties: false
+        }
+      }
+    }],
+    
+    interventions: [{
+      type: "function",
+      function: {
+        name: "extract_intervention_data",
+        description: "Extract surgical intervention data",
+        parameters: {
+          type: "object",
+          properties: {
+            indications: {
+              type: "array",
+              description: "Surgical indications",
+              items: {
+                type: "object",
+                properties: {
+                  sign: { type: "string", description: "Sign/symptom" },
+                  count: { type: "number", description: "Patient count" }
+                }
+              }
+            },
+            interventions: {
+              type: "array",
+              description: "Interventions performed",
+              items: {
+                type: "object",
+                properties: {
+                  type: { type: "string", description: "Intervention type" },
+                  timeToSurgery: { type: "number", description: "Hours to surgery" },
+                  duraplasty: { type: "string", description: "Duraplasty (true/false/null)" }
+                }
+              }
+            },
+            confidence: {
+              type: "object",
+              properties: {
+                indications: { type: "number" },
+                interventions: { type: "number" }
+              }
+            }
+          },
+          additionalProperties: false
+        }
+      }
+    }],
+    
+    study_arms: [{
+      type: "function",
+      function: {
+        name: "extract_study_arms",
+        description: "Extract study arm definitions",
+        parameters: {
+          type: "object",
+          properties: {
+            arms: {
+              type: "array",
+              description: "Study arms/groups",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: "Arm label" },
+                  sampleSize: { type: "number", description: "Patients in arm" }
+                },
+                required: ["label", "sampleSize"]
+              }
+            },
+            confidence: {
+              type: "object",
+              properties: {
+                arms: { type: "number" }
+              }
+            }
+          },
+          required: ["arms"],
+          additionalProperties: false
+        }
+      }
+    }],
+    
+    outcomes: [{
+      type: "function",
+      function: {
+        name: "extract_outcome_data",
+        description: "Extract mortality and mRS data",
+        parameters: {
+          type: "object",
+          properties: {
+            mortality: {
+              type: "array",
+              description: "Mortality data points",
+              items: {
+                type: "object",
+                properties: {
+                  arm: { type: "string", description: "Study arm" },
+                  timepoint: { type: "string", description: "Timepoint" },
+                  deaths: { type: "number", description: "Number of deaths" },
+                  total: { type: "number", description: "Total patients" }
+                }
+              }
+            },
+            mrsData: {
+              type: "array",
+              description: "mRS data points",
+              items: {
+                type: "object",
+                properties: {
+                  arm: { type: "string", description: "Study arm" },
+                  timepoint: { type: "string", description: "Timepoint" },
+                  score0: { type: "number", description: "mRS 0 count" },
+                  score1: { type: "number", description: "mRS 1 count" },
+                  score2: { type: "number", description: "mRS 2 count" },
+                  score3: { type: "number", description: "mRS 3 count" },
+                  score4: { type: "number", description: "mRS 4 count" },
+                  score5: { type: "number", description: "mRS 5 count" },
+                  score6: { type: "number", description: "mRS 6 count" }
+                }
+              }
+            },
+            confidence: {
+              type: "object",
+              properties: {
+                mortality: { type: "number" },
+                mrsData: { type: "number" }
+              }
+            }
+          },
+          additionalProperties: false
+        }
+      }
+    }],
+    
+    complications: [{
+      type: "function",
+      function: {
+        name: "extract_complication_data",
+        description: "Extract complications and predictors",
+        parameters: {
+          type: "object",
+          properties: {
+            complications: {
+              type: "array",
+              description: "Complications list",
+              items: {
+                type: "object",
+                properties: {
+                  description: { type: "string", description: "Complication description" },
+                  arm: { type: "string", description: "Study arm" },
+                  count: { type: "number", description: "Patient count" }
+                }
+              }
+            },
+            predictorsPoorOutcomeSurgical: { type: "string", description: "Predictors summary" },
+            predictors: {
+              type: "array",
+              description: "Predictor analysis",
+              items: {
+                type: "object",
+                properties: {
+                  variable: { type: "string", description: "Predictor variable" },
+                  effectSize: { type: "number", description: "Effect size (OR/HR)" },
+                  ciLower: { type: "number", description: "95% CI lower" },
+                  ciUpper: { type: "number", description: "95% CI upper" },
+                  pValue: { type: "number", description: "p-value" }
+                }
+              }
+            },
+            confidence: {
+              type: "object",
+              properties: {
+                complications: { type: "number" },
+                predictors: { type: "number" }
               }
             }
           },

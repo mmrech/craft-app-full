@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Plus, X } from "lucide-react";
 import { useExtraction } from "@/contexts/ExtractionContext";
+import { AIExtractionButton } from "../AIExtractionButton";
 
 const Step5Interventions = () => {
   const { formData, updateFormData } = useExtraction();
@@ -29,9 +30,16 @@ const Step5Interventions = () => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold border-b-2 border-primary pb-2">
-        Step 5: Interventions
-      </h2>
+      <div className="flex items-center justify-between border-b-2 border-primary pb-2">
+        <h2 className="text-xl font-bold">
+          Step 5: Interventions
+        </h2>
+        <AIExtractionButton
+          extractionType="interventions"
+          pdfText={formData._pdfFullText as string}
+          label="AI Extract Interventions"
+        />
+      </div>
 
       <div>
         <h3 className="text-base font-semibold mb-3">Surgical Indications</h3>

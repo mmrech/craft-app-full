@@ -8,7 +8,7 @@ import { retryWithBackoff, getErrorMessage } from "@/lib/apiRetry";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 interface AIExtractionButtonProps {
-  extractionType: 'study_id' | 'picot' | 'baseline' | 'full_study';
+  extractionType: 'study_id' | 'picot' | 'baseline' | 'imaging' | 'interventions' | 'study_arms' | 'outcomes' | 'complications' | 'full_study';
   pdfText: string;
   label?: string;
   disabled?: boolean;

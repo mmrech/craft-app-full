@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, X } from "lucide-react";
 import { useExtraction } from "@/contexts/ExtractionContext";
+import { AIExtractionButton } from "../AIExtractionButton";
 
 const Step6StudyArms = () => {
   const { formData, updateFormData } = useExtraction();
@@ -19,9 +20,16 @@ const Step6StudyArms = () => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold border-b-2 border-primary pb-2">
-        Step 6: Study Arms
-      </h2>
+      <div className="flex items-center justify-between border-b-2 border-primary pb-2">
+        <h2 className="text-xl font-bold">
+          Step 6: Study Arms
+        </h2>
+        <AIExtractionButton
+          extractionType="study_arms"
+          pdfText={formData._pdfFullText as string}
+          label="AI Extract Study Arms"
+        />
+      </div>
       <p className="text-sm text-muted-foreground">
         Define the distinct groups for comparison.
       </p>

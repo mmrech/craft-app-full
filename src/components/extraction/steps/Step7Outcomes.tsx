@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, X } from "lucide-react";
 import { useExtraction } from "@/contexts/ExtractionContext";
+import { AIExtractionButton } from "../AIExtractionButton";
 
 const Step7Outcomes = () => {
   const { formData, updateFormData } = useExtraction();
@@ -28,9 +29,16 @@ const Step7Outcomes = () => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold border-b-2 border-primary pb-2">
-        Step 7: Outcomes
-      </h2>
+      <div className="flex items-center justify-between border-b-2 border-primary pb-2">
+        <h2 className="text-xl font-bold">
+          Step 7: Outcomes
+        </h2>
+        <AIExtractionButton
+          extractionType="outcomes"
+          pdfText={formData._pdfFullText as string}
+          label="AI Extract Outcomes"
+        />
+      </div>
 
       <div>
         <h3 className="text-base font-semibold mb-3">Mortality Data</h3>
