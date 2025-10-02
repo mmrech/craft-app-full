@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import { Canvas as FabricCanvas, Rect } from "fabric";
+import { useEffect, useRef, useState } from "react";
 import { Document, Page } from "react-pdf";
 
 interface Extraction {
@@ -33,120 +32,43 @@ export const PdfHighlightLayer = ({
   onMouseUp,
   loading,
 }: PdfHighlightLayerProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  const [highlightOpacity, setHighlightOpacity] = useState(0.3);
 
-  // Initialize Fabric canvas
+  // Filter extractions for current page
+  const pageExtractions = extractions.filter(e => {
+    return e.page === currentPage && (e.coordinates.x !== 0 || e.coordinates.y !== 0);
+  });
+
+  // Pulsing animation for highlighted extraction
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!highlightedExtractionId) return;
 
-    const canvas = new FabricCanvas(canvasRef.current, {
-      selection: false,
-      renderOnAddRemove: false,
-      backgroundColor: 'transparent',
-    });
+    let opacity = 0.3;
+    let increasing = true;
+    let animationFrameId: number;
 
-    fabricCanvasRef.current = canvas;
+    const animate = () => {
+      if (increasing) {
+        opacity += 0.02;
+        if (opacity >= 0.5) increasing = false;
+      } else {
+        opacity -= 0.02;
+        if (opacity <= 0.3) increasing = true;
+      }
+      setHighlightOpacity(opacity);
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
 
     return () => {
-      canvas.dispose();
-      fabricCanvasRef.current = null;
-    };
-  }, []);
-
-  // Update canvas size to match PDF page
-  useEffect(() => {
-    if (!fabricCanvasRef.current || !pageRef.current) return;
-
-    const updateCanvasSize = () => {
-      const pageElement = pageRef.current?.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
-      if (pageElement) {
-        const width = pageElement.width;
-        const height = pageElement.height;
-        
-        fabricCanvasRef.current?.setDimensions({ width, height });
-        if (canvasRef.current) {
-          canvasRef.current.style.position = 'absolute';
-          canvasRef.current.style.top = '0';
-          canvasRef.current.style.left = '0';
-          canvasRef.current.style.pointerEvents = 'none';
-        }
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
     };
-
-    // Wait for PDF to render
-    const timer = setTimeout(updateCanvasSize, 100);
-    return () => clearTimeout(timer);
-  }, [currentPage, scale]);
-
-  // Render highlights
-  useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    if (!canvas) return;
-
-    // Clear existing highlights
-    canvas.clear();
-
-    // Filter extractions for current page
-    const pageExtractions = extractions.filter(e => {
-      return e.page === currentPage && (e.coordinates.x !== 0 || e.coordinates.y !== 0);
-    });
-
-    // Get the scale ratio between canvas pixels and CSS pixels
-    const pageElement = pageRef.current?.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
-    const pixelRatio = pageElement ? pageElement.width / pageElement.clientWidth : 1;
-
-    pageExtractions.forEach(extraction => {
-      const isHighlighted = extraction.id === highlightedExtractionId;
-      const coords = extraction.coordinates;
-
-      // Skip if no valid coordinates
-      if (coords.width === 0 && coords.height === 0) return;
-
-      // Coordinates are in CSS pixels, need to scale to canvas pixels
-      const rect = new Rect({
-        left: coords.x * pixelRatio,
-        top: coords.y * pixelRatio,
-        width: coords.width * pixelRatio,
-        height: coords.height * pixelRatio,
-        fill: isHighlighted ? 'rgba(255, 193, 7, 0.3)' : 'rgba(59, 130, 246, 0.2)',
-        stroke: isHighlighted ? '#FF9800' : '#3B82F6',
-        strokeWidth: isHighlighted ? 3 : 2,
-        selectable: false,
-        evented: false,
-        strokeDashArray: extraction.method === 'manual' ? undefined : [5, 5],
-      });
-
-      canvas.add(rect);
-
-      // Add pulsing animation for highlighted extraction
-      if (isHighlighted) {
-        let opacity = 0.3;
-        let increasing = true;
-        
-        const animate = () => {
-          if (increasing) {
-            opacity += 0.02;
-            if (opacity >= 0.5) increasing = false;
-          } else {
-            opacity -= 0.02;
-            if (opacity <= 0.3) increasing = true;
-          }
-          rect.set('fill', `rgba(255, 193, 7, ${opacity})`);
-          canvas.renderAll();
-          
-          if (extraction.id === highlightedExtractionId) {
-            requestAnimationFrame(animate);
-          }
-        };
-        animate();
-      }
-    });
-
-    canvas.renderAll();
-  }, [extractions, currentPage, scale, highlightedExtractionId]);
+  }, [highlightedExtractionId]);
 
   return (
     <div ref={containerRef} style={{ position: 'relative', display: 'block', width: 'fit-content', margin: '0 auto' }}>
@@ -165,16 +87,38 @@ export const PdfHighlightLayer = ({
             className="shadow-2xl"
           />
         </Document>
-        <canvas 
-          ref={canvasRef} 
-          style={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            pointerEvents: 'none',
-            zIndex: 10
-          }} 
-        />
+        
+        {/* CSS-based highlight overlays */}
+        {pageExtractions.map((extraction) => {
+          const isHighlighted = extraction.id === highlightedExtractionId;
+          const coords = extraction.coordinates;
+
+          // Skip if no valid coordinates
+          if (coords.width === 0 && coords.height === 0) return null;
+
+          return (
+            <div
+              key={extraction.id}
+              style={{
+                position: 'absolute',
+                left: `${coords.x}px`,
+                top: `${coords.y}px`,
+                width: `${coords.width}px`,
+                height: `${coords.height}px`,
+                backgroundColor: isHighlighted 
+                  ? `rgba(255, 193, 7, ${highlightOpacity})` 
+                  : 'rgba(59, 130, 246, 0.2)',
+                border: isHighlighted 
+                  ? '3px solid #FF9800' 
+                  : '2px solid #3B82F6',
+                borderStyle: extraction.method === 'manual' ? 'solid' : 'dashed',
+                pointerEvents: 'none',
+                zIndex: 10,
+                boxSizing: 'border-box',
+              }}
+            />
+          );
+        })}
       </div>
     </div>
   );
