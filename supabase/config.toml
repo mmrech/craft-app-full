@@ -1,0 +1,7 @@
+project_id = "nifzcgzljjembmifsmcn"
+
+[functions.extract-clinical-data]
+verify_jwt = false
+
+[functions.validate-clinical-data]
+verify_jwt = false
