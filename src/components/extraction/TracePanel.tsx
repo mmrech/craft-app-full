@@ -11,11 +11,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const TracePanel = () => {
-  const { extractions, setCurrentPage, formData } = useExtraction();
+  const { extractions, setCurrentPage, formData, setHighlightedExtractionId, highlightedExtractionId } = useExtraction();
   const { toast } = useToast();
 
   const handleExtractionClick = (extraction: any) => {
     setCurrentPage(extraction.page);
+    setHighlightedExtractionId(extraction.id);
+    
+    // Clear highlight after 3 seconds
+    setTimeout(() => {
+      setHighlightedExtractionId(null);
+    }, 3000);
   };
 
   const handleExport = (format: 'csv' | 'xlsx' | 'json') => {
@@ -125,7 +131,9 @@ const TracePanel = () => {
           extractions.slice().reverse().map((extraction) => (
             <div
               key={extraction.id}
-              className="bg-muted/50 border rounded p-2.5 cursor-pointer hover:bg-muted transition-all text-xs"
+              className={`bg-muted/50 border rounded p-2.5 cursor-pointer hover:bg-muted transition-all text-xs ${
+                highlightedExtractionId === extraction.id ? 'ring-2 ring-primary animate-pulse' : ''
+              }`}
               onClick={() => handleExtractionClick(extraction)}
             >
               <div className="font-bold text-blue-600 dark:text-blue-400 mb-1">

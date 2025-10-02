@@ -41,6 +41,8 @@ interface ExtractionContextType {
   stepCompletion: Record<number, number>;
   getStepProgress: (step: number) => number;
   requiredFields: Record<number, string[]>;
+  highlightedExtractionId: string | null;
+  setHighlightedExtractionId: (id: string | null) => void;
 }
 
 const ExtractionContext = createContext<ExtractionContextType | undefined>(undefined);
@@ -67,6 +69,7 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
   const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [stepCompletion, setStepCompletion] = useState<Record<number, number>>({});
+  const [highlightedExtractionId, setHighlightedExtractionId] = useState<string | null>(null);
 
   // Define required fields per step
   const requiredFields: Record<number, string[]> = {
@@ -249,7 +252,9 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
       clearValidation,
       stepCompletion,
       getStepProgress,
-      requiredFields
+      requiredFields,
+      highlightedExtractionId,
+      setHighlightedExtractionId
     }}>
       {children}
     </ExtractionContext.Provider>

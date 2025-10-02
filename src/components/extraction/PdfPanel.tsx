@@ -12,6 +12,7 @@ import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { supabase } from "@/integrations/supabase/client";
 import DocumentLibrary from "./DocumentLibrary";
+import { PdfHighlightLayer } from "./PdfHighlightLayer";
 
 // Configure PDF.js worker for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -32,7 +33,9 @@ const PdfPanel = () => {
     currentDocumentName,
     setCurrentDocumentName,
     currentDocumentId,
-    setCurrentDocumentId
+    setCurrentDocumentId,
+    extractions,
+    highlightedExtractionId
   } = useExtraction();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -330,6 +333,36 @@ const PdfPanel = () => {
     }
 
     const selectedText = selection.toString().trim();
+    
+    // Calculate real coordinates from selection
+    let coordinates = { x: 0, y: 0, width: 0, height: 0 };
+    
+    try {
+      if (selection.rangeCount > 0 && currentDocumentId) {
+        const range = selection.getRangeAt(0);
+        const rects = range.getClientRects();
+        
+        if (rects.length > 0) {
+          // Get the PDF canvas element for coordinate transformation
+          const pdfCanvas = document.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
+          if (pdfCanvas) {
+            const pdfRect = pdfCanvas.getBoundingClientRect();
+            const firstRect = rects[0];
+            const lastRect = rects[rects.length - 1];
+            
+            // Transform screen coordinates to PDF coordinates
+            coordinates = {
+              x: (firstRect.left - pdfRect.left) / scale,
+              y: (firstRect.top - pdfRect.top) / scale,
+              width: (lastRect.right - firstRect.left) / scale,
+              height: (lastRect.bottom - firstRect.top) / scale,
+            };
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Could not calculate coordinates:', error);
+    }
 
     // Update form field
     updateFormData(activeField, selectedText);
@@ -343,7 +376,7 @@ const PdfPanel = () => {
       fieldName: activeField,
       text: selectedText,
       page: currentPage,
-      coordinates: { x: 0, y: 0, width: 0, height: 0 },
+      coordinates,
       method: 'manual',
       documentName: currentDocumentName
     });
@@ -456,37 +489,32 @@ const PdfPanel = () => {
                 <Progress value={extractionProgress} className="h-2" />
               </div>
             )}
-            <div className="relative inline-block" onMouseUp={handleTextSelection}>
-              {loadError ? (
-                <div className="bg-destructive/10 border border-destructive rounded-lg p-8 text-center max-w-md">
-                  <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-destructive mb-2">PDF Load Error</h3>
-                  <p className="text-sm text-muted-foreground mb-4">{loadError}</p>
-                  <Button onClick={() => fileInputRef.current?.click()} variant="outline">
-                    Try Another File
-                  </Button>
-                </div>
-              ) : (
-                <Document
-                  file={pdfFile}
-                  onLoadSuccess={onDocumentLoadSuccess}
-                  onLoadError={onDocumentLoadError}
-                  loading={
-                    <div className="text-white p-4 text-center">
-                      <div className="animate-pulse">Loading PDF...</div>
-                    </div>
-                  }
-                >
-                  <Page
-                    pageNumber={currentPage}
-                    scale={scale}
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
-                    className="shadow-2xl"
-                  />
-                </Document>
-              )}
-            </div>
+            {loadError ? (
+              <div className="bg-destructive/10 border border-destructive rounded-lg p-8 text-center max-w-md">
+                <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-destructive mb-2">PDF Load Error</h3>
+                <p className="text-sm text-muted-foreground mb-4">{loadError}</p>
+                <Button onClick={() => fileInputRef.current?.click()} variant="outline">
+                  Try Another File
+                </Button>
+              </div>
+            ) : (
+              <PdfHighlightLayer
+                file={pdfFile}
+                currentPage={currentPage}
+                scale={scale}
+                extractions={extractions.filter(e => e.page === currentPage)}
+                highlightedExtractionId={highlightedExtractionId}
+                onDocumentLoadSuccess={onDocumentLoadSuccess}
+                onDocumentLoadError={onDocumentLoadError}
+                onMouseUp={handleTextSelection}
+                loading={
+                  <div className="text-white p-4 text-center">
+                    <div className="animate-pulse">Loading PDF...</div>
+                  </div>
+                }
+              />
+            )}
           </div>
         )}
       </div>
