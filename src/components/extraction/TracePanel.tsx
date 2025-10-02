@@ -1,23 +1,74 @@
 import { useExtraction } from "@/contexts/ExtractionContext";
 import { Button } from "@/components/ui/button";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, FileSpreadsheet } from "lucide-react";
+import { ExportService } from "@/lib/exportService";
+import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const TracePanel = () => {
-  const { extractions, setCurrentPage } = useExtraction();
+  const { extractions, setCurrentPage, formData } = useExtraction();
+  const { toast } = useToast();
 
   const handleExtractionClick = (extraction: any) => {
     setCurrentPage(extraction.page);
   };
 
-  const handleExportJSON = () => {
-    const dataStr = JSON.stringify(extractions, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    const exportFileDefaultName = `extraction_${Date.now()}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
+  const handleExport = (format: 'csv' | 'xlsx' | 'json') => {
+    if (extractions.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "Extract some data first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const exportData = [{
+      documentId: 'current',
+      documentName: 'Current Document',
+      createdAt: new Date().toISOString(),
+      totalPages: Math.max(...extractions.map(e => e.page), 0),
+      fileSize: 0,
+      formData,
+      extractions: extractions.map(e => ({
+        id: e.id,
+        documentName: 'Current Document',
+        extractedDate: new Date(e.timestamp).toISOString(),
+        stepNumber: 0,
+        fieldName: e.fieldName,
+        extractedText: e.text,
+        pageNumber: e.page,
+        method: e.method
+      }))
+    }];
+
+    const filename = ExportService.generateFilename('current_extractions', format);
+
+    try {
+      if (format === 'csv') {
+        ExportService.exportToCSV(exportData, filename);
+      } else if (format === 'xlsx') {
+        ExportService.exportToExcel(exportData, filename);
+      } else {
+        ExportService.exportToJSON(exportData, filename);
+      }
+
+      toast({
+        title: "Export successful",
+        description: `Exported ${extractions.length} extraction(s) as ${format.toUpperCase()}`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Export failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
   const uniquePages = new Set(extractions.map(e => e.page));
@@ -39,18 +90,29 @@ const TracePanel = () => {
       </div>
 
       {/* Export Section */}
-      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-        <h4 className="text-sm font-semibold mb-2">Export</h4>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={handleExportJSON} className="text-xs flex-1">
-            <Download className="w-3 h-3 mr-1" />
-            JSON
-          </Button>
-          <Button size="sm" variant="outline" className="text-xs flex-1">
-            <FileText className="w-3 h-3 mr-1" />
-            CSV
-          </Button>
-        </div>
+      <div className="mb-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full">
+              <Download className="w-4 h-4 mr-2" />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-48">
+            <DropdownMenuItem onClick={() => handleExport('csv')}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Export as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('xlsx')}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Export as Excel
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('json')}>
+              <FileText className="w-4 h-4 mr-2" />
+              Export as JSON
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Extractions Log */}
