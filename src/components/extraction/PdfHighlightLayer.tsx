@@ -44,6 +44,7 @@ export const PdfHighlightLayer = ({
     const canvas = new FabricCanvas(canvasRef.current, {
       selection: false,
       renderOnAddRemove: false,
+      backgroundColor: 'transparent',
     });
 
     fabricCanvasRef.current = canvas;
@@ -145,7 +146,7 @@ export const PdfHighlightLayer = ({
 
   return (
     <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
-      <div ref={pageRef} onMouseUp={onMouseUp}>
+      <div ref={pageRef} onMouseUp={onMouseUp} style={{ position: 'relative' }}>
         <Document
           file={file}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -160,8 +161,17 @@ export const PdfHighlightLayer = ({
             className="shadow-2xl"
           />
         </Document>
+        <canvas 
+          ref={canvasRef} 
+          style={{ 
+            position: 'absolute', 
+            top: 0, 
+            left: 0, 
+            pointerEvents: 'none',
+            zIndex: 10
+          }} 
+        />
       </div>
-      <canvas ref={canvasRef} />
     </div>
   );
 };
