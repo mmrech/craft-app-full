@@ -1,10 +1,11 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { useExtraction } from "@/contexts/ExtractionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Upload, Library } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ChevronLeft, ChevronRight, Upload, Library, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
@@ -39,17 +40,60 @@ const PdfPanel = () => {
   const [pdfFile, setPdfFile] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [isExtractingText, setIsExtractingText] = useState(false);
+  const [extractionProgress, setExtractionProgress] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // File validation constants
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+  const ALLOWED_TYPES = ['application/pdf'];
+  const MAX_RETRY_ATTEMPTS = 3;
+
+  // Validate file before upload
+  const validateFile = (file: File): { valid: boolean; error?: string } => {
+    // Check file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return { valid: false, error: 'Only PDF files are supported' };
+    }
+
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return { valid: false, error: `File size must be less than ${MAX_FILE_SIZE / (1024 * 1024)}MB` };
+    }
+
+    // Check if file is empty
+    if (file.size === 0) {
+      return { valid: false, error: 'File is empty' };
+    }
+
+    return { valid: true };
+  };
 
   const loadPDF = async (file: File) => {
     setIsLoading(true);
+    setLoadError(null);
+    
+    // Validate file
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast.error(validation.error || 'Invalid file');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const fileName = `${Date.now()}-${file.name}`;
       
+      // Upload with progress tracking
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('pdf_documents')
         .upload(fileName, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        if (uploadError.message.includes('storage')) {
+          throw new Error('Storage quota exceeded. Please contact support.');
+        }
+        throw uploadError;
+      }
 
       // Get signed URL for private bucket (valid for 1 hour)
       const { data: signedUrlData, error: urlError } = await supabase.storage
@@ -79,9 +123,11 @@ const PdfPanel = () => {
       setPdfFile(signedUrlData.signedUrl);
       
       toast.success('PDF uploaded successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading PDF:', error);
-      toast.error('Failed to load PDF');
+      const errorMessage = error.message || 'Failed to load PDF';
+      setLoadError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -114,83 +160,139 @@ const PdfPanel = () => {
     setTotalPages(numPages);
     setCurrentPage(1);
     setIsLoading(false);
+    setLoadError(null);
     
     // Extract text from all pages in the browser
     if (currentDocumentId) {
       setIsExtractingText(true);
-      toast.info('Extracting text from PDF...');
+      setExtractionProgress(0);
+      toast.info(`Extracting text from ${numPages} pages...`);
       
       try {
         await extractAllPagesText(numPages);
-        toast.success(`Text extracted from ${numPages} pages`);
-      } catch (error) {
+        toast.success(`Successfully extracted text from ${numPages} pages`);
+      } catch (error: any) {
         console.error('Extraction error:', error);
-        toast.error('Text extraction failed');
+        const errorMsg = error.message || 'Text extraction failed';
+        toast.error(errorMsg);
+        setLoadError(errorMsg);
       } finally {
         setIsExtractingText(false);
+        setExtractionProgress(0);
       }
     }
   };
 
-  const extractAllPagesText = async (totalPgs: number) => {
+  const onDocumentLoadError = (error: Error) => {
+    console.error('PDF load error:', error);
+    setIsLoading(false);
+    
+    let errorMessage = 'Failed to load PDF';
+    
+    if (error.message.includes('password')) {
+      errorMessage = 'This PDF is password-protected. Please unlock it first.';
+    } else if (error.message.includes('Invalid PDF')) {
+      errorMessage = 'This file appears to be corrupted or is not a valid PDF.';
+    } else if (error.message.includes('fetch')) {
+      errorMessage = 'Network error. Please check your connection and try again.';
+    }
+    
+    setLoadError(errorMessage);
+    toast.error(errorMessage);
+  };
+
+  const extractAllPagesText = async (totalPgs: number, retryAttempt = 0): Promise<void> => {
     if (!pdfFile || !currentDocumentId) return;
 
-    const pdfjs = await import('pdfjs-dist');
-    const loadingTask = pdfjs.getDocument(pdfFile);
-    const pdf = await loadingTask.promise;
+    try {
+      const pdfjs = await import('pdfjs-dist');
+      const loadingTask = pdfjs.getDocument(pdfFile);
+      const pdf = await loadingTask.promise;
 
-    const extractions = [];
+      const extractions = [];
+      const batchSize = 5; // Process 5 pages at a time
+      
+      for (let pageNum = 1; pageNum <= totalPgs; pageNum++) {
+        try {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          const viewport = page.getViewport({ scale: 1.0 });
 
-    for (let pageNum = 1; pageNum <= totalPgs; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const viewport = page.getViewport({ scale: 1.0 });
+          const textItems = textContent.items.map((item: any) => {
+            const transform = item.transform;
+            const fontHeight = Math.sqrt(transform[2] * transform[2] + transform[3] * transform[3]);
 
-      const textItems = textContent.items.map((item: any) => {
-        const transform = item.transform;
-        const fontHeight = Math.sqrt(transform[2] * transform[2] + transform[3] * transform[3]);
+            return {
+              text: item.str,
+              x: transform[4],
+              y: viewport.height - transform[5] - fontHeight,
+              width: item.width,
+              height: fontHeight,
+              fontName: item.fontName,
+            };
+          });
 
-        return {
-          text: item.str,
-          x: transform[4],
-          y: viewport.height - transform[5] - fontHeight,
-          width: item.width,
-          height: fontHeight,
-          fontName: item.fontName,
-        };
-      });
+          const fullText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
 
-      const fullText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+          extractions.push({
+            document_id: currentDocumentId,
+            page_number: pageNum,
+            text_items: textItems,
+            full_text: fullText,
+          });
 
-      extractions.push({
-        document_id: currentDocumentId,
-        page_number: pageNum,
-        text_items: textItems,
-        full_text: fullText,
-      });
+          // Update progress
+          const progress = Math.round((pageNum / totalPgs) * 100);
+          setExtractionProgress(progress);
+
+          // Save in batches
+          if (extractions.length >= batchSize || pageNum === totalPgs) {
+            const { error } = await supabase
+              .from('pdf_extractions')
+              .upsert(extractions, {
+                onConflict: 'document_id,page_number',
+              });
+
+            if (error) {
+              console.error('Failed to save extraction batch:', error);
+              throw new Error(`Failed to save page ${pageNum - extractions.length + 1}-${pageNum}`);
+            }
+            
+            extractions.length = 0; // Clear batch
+          }
+        } catch (pageError: any) {
+          console.error(`Error extracting page ${pageNum}:`, pageError);
+          // Continue with next page even if one fails
+          toast.error(`Warning: Failed to extract page ${pageNum}`);
+        }
+      }
+
+      // Update document with total pages
+      const { error: updateError } = await supabase
+        .from('documents')
+        .update({ total_pages: totalPgs })
+        .eq('id', currentDocumentId);
+
+      if (updateError) {
+        console.error('Failed to update document:', updateError);
+      }
+
+    } catch (error: any) {
+      console.error('Extraction error:', error);
+      
+      // Retry logic
+      if (retryAttempt < MAX_RETRY_ATTEMPTS) {
+        toast.info(`Retrying extraction (attempt ${retryAttempt + 1}/${MAX_RETRY_ATTEMPTS})...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryAttempt + 1))); // Exponential backoff
+        return extractAllPagesText(totalPgs, retryAttempt + 1);
+      }
+      
+      throw new Error(`Failed to extract text after ${MAX_RETRY_ATTEMPTS} attempts: ${error.message}`);
     }
-
-    // Save all extractions to database
-    const { error } = await supabase
-      .from('pdf_extractions')
-      .upsert(extractions, {
-        onConflict: 'document_id,page_number',
-      });
-
-    if (error) {
-      console.error('Failed to save extractions:', error);
-      throw error;
-    }
-
-    // Update document with total pages
-    await supabase
-      .from('documents')
-      .update({ total_pages: totalPgs })
-      .eq('id', currentDocumentId);
   };
 
 
@@ -347,25 +449,43 @@ const PdfPanel = () => {
         ) : (
           <div className="flex justify-center relative">
             {isExtractingText && (
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-lg z-10">
-                Extracting text from PDF...
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-6 py-3 rounded-lg shadow-lg z-10 min-w-[300px]">
+                <div className="text-sm font-medium mb-2 text-center">
+                  Extracting text from PDF... {extractionProgress}%
+                </div>
+                <Progress value={extractionProgress} className="h-2" />
               </div>
             )}
             <div className="relative inline-block" onMouseUp={handleTextSelection}>
-              <Document
-                file={pdfFile}
-                onLoadSuccess={onDocumentLoadSuccess}
-                loading={<div className="text-white p-4">Loading PDF...</div>}
-                error={<div className="text-red-400 p-4">Failed to load PDF</div>}
-              >
-                <Page
-                  pageNumber={currentPage}
-                  scale={scale}
-                  renderTextLayer={true}
-                  renderAnnotationLayer={true}
-                  className="shadow-2xl"
-                />
-              </Document>
+              {loadError ? (
+                <div className="bg-destructive/10 border border-destructive rounded-lg p-8 text-center max-w-md">
+                  <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-destructive mb-2">PDF Load Error</h3>
+                  <p className="text-sm text-muted-foreground mb-4">{loadError}</p>
+                  <Button onClick={() => fileInputRef.current?.click()} variant="outline">
+                    Try Another File
+                  </Button>
+                </div>
+              ) : (
+                <Document
+                  file={pdfFile}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
+                  loading={
+                    <div className="text-white p-4 text-center">
+                      <div className="animate-pulse">Loading PDF...</div>
+                    </div>
+                  }
+                >
+                  <Page
+                    pageNumber={currentPage}
+                    scale={scale}
+                    renderTextLayer={true}
+                    renderAnnotationLayer={true}
+                    className="shadow-2xl"
+                  />
+                </Document>
+              )}
             </div>
           </div>
         )}
