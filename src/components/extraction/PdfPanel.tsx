@@ -351,13 +351,13 @@ const PdfPanel = () => {
             const lastRect = rects[rects.length - 1];
             
             // Transform viewport coordinates to PDF canvas coordinates
-            // getBoundingClientRect() gives viewport positions, so the difference
-            // between selection and canvas positions gives us the position within the canvas
+            // Store coordinates in canvas pixels (already scaled), not PDF points
+            // The Fabric.js canvas is sized to match the scaled PDF canvas
             coordinates = {
-              x: (firstRect.left - pdfRect.left) / scale,
-              y: (firstRect.top - pdfRect.top) / scale,
-              width: (lastRect.right - firstRect.left) / scale,
-              height: (lastRect.bottom - firstRect.top) / scale,
+              x: firstRect.left - pdfRect.left,
+              y: firstRect.top - pdfRect.top,
+              width: lastRect.right - firstRect.left,
+              height: lastRect.bottom - firstRect.top,
             };
             
             // Debug logging
