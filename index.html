@@ -45,7 +45,15 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static loading state for instant LCP - replaced by React on load -->
+      <div class="flex h-screen items-center justify-center" style="background-color:hsl(210,20%,95%)">
+        <div class="text-center">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style="border-color:hsl(210,100%,45%)"></div>
+          <p style="color:hsl(215,15%,45%)">Loading...</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

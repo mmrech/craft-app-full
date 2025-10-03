@@ -3,4 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
-createRoot(document.getElementById("root")!).render(<App />);
+const rootElement = document.getElementById("root")!;
+// Clear static loading state before rendering React
+rootElement.innerHTML = '';
+createRoot(rootElement).render(<App />);
