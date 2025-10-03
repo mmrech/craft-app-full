@@ -19,6 +19,18 @@ export default defineConfig(({ mode }) => ({
     include: ['react-pdf'],
   },
   build: {
+    modulePreload: {
+      polyfill: false, // Modern browsers only
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-tabs', '@radix-ui/react-select'],
+          'pdf-vendor': ['react-pdf', 'pdfjs-dist'],
+        },
+      },
+    },
     commonjsOptions: {
       include: [/react-pdf/, /node_modules/],
     },
