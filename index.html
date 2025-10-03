@@ -8,6 +8,28 @@
     <link rel="dns-prefetch" href="https://craft-app-full.lovable.app" />
     <link rel="preconnect" href="https://craft-app-full.lovable.app" crossorigin />
     
+    <!-- Inline critical CSS for faster initial render -->
+    <style>
+      :root{--background:210 30% 98%;--foreground:215 25% 15%;--primary:210 100% 45%;--muted:210 20% 95%;--muted-foreground:215 15% 45%}
+      *{border-color:hsl(var(--border))}
+      body{background-color:hsl(var(--background));color:hsl(var(--foreground));margin:0;font-family:system-ui,-apple-system,sans-serif}
+      .flex{display:flex}
+      .h-screen{height:100vh}
+      .items-center{align-items:center}
+      .justify-center{justify-content:center}
+      .text-center{text-align:center}
+      .animate-spin{animation:spin 1s linear infinite}
+      @keyframes spin{to{transform:rotate(360deg)}}
+      .rounded-full{border-radius:9999px}
+      .h-12{height:3rem}
+      .w-12{width:3rem}
+      .border-b-2{border-bottom-width:2px}
+      .border-primary{border-color:hsl(var(--primary))}
+      .mx-auto{margin-left:auto;margin-right:auto}
+      .mb-4{margin-bottom:1rem}
+      .text-muted-foreground{color:hsl(var(--muted-foreground))}
+    </style>
+    
     <title>MedExtract - Clinical Data Extraction System</title>
     <meta name="description" content="AI-powered clinical data extraction and management system for healthcare professionals" />
     <meta name="author" content="MedExtract" />
