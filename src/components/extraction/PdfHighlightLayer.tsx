@@ -6,7 +6,7 @@ interface Extraction {
   fieldName: string;
   page: number;
   coordinates: { x: number; y: number; width: number; height: number };
-  method: 'manual' | 'markdown-search';
+  method: 'manual' | 'markdown-search' | 'ai';
 }
 
 interface PdfHighlightLayerProps {
@@ -107,10 +107,14 @@ export const PdfHighlightLayer = ({
                 height: `${coords.height}px`,
                 backgroundColor: isHighlighted 
                   ? `rgba(255, 193, 7, ${highlightOpacity})` 
-                  : 'rgba(59, 130, 246, 0.2)',
+                  : extraction.method === 'ai' 
+                    ? 'rgba(34, 197, 94, 0.2)' 
+                    : 'rgba(59, 130, 246, 0.2)',
                 border: isHighlighted 
                   ? '3px solid #FF9800' 
-                  : '2px solid #3B82F6',
+                  : extraction.method === 'ai'
+                    ? '2px dashed #22C55E'
+                    : '2px solid #3B82F6',
                 borderStyle: extraction.method === 'manual' ? 'solid' : 'dashed',
                 pointerEvents: 'none',
                 zIndex: 10,

@@ -8,7 +8,7 @@ interface Extraction {
   text: string;
   page: number;
   coordinates: { x: number; y: number; width: number; height: number };
-  method: 'manual' | 'markdown-search';
+  method: 'manual' | 'markdown-search' | 'ai';
   timestamp: number;
   documentName?: string;
 }

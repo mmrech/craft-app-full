@@ -108,12 +108,84 @@ export type Database = {
         }
         Relationships: []
       }
+      pdf_annotations: {
+        Row: {
+          annotation_type: string
+          color: string | null
+          created_at: string
+          document_id: string
+          extraction_id: string | null
+          fabric_data: Json
+          id: string
+          notes: string | null
+          page_number: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          annotation_type: string
+          color?: string | null
+          created_at?: string
+          document_id: string
+          extraction_id?: string | null
+          fabric_data: Json
+          id?: string
+          notes?: string | null
+          page_number: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          annotation_type?: string
+          color?: string | null
+          created_at?: string
+          document_id?: string
+          extraction_id?: string | null
+          fabric_data?: Json
+          id?: string
+          notes?: string | null
+          page_number?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdf_annotations_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "document_quality_view"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "pdf_annotations_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdf_annotations_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "extraction_summary_view"
+            referencedColumns: ["document_id"]
+          },
+          {
+            foreignKeyName: "pdf_annotations_extraction_id_fkey"
+            columns: ["extraction_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_extractions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pdf_extractions: {
         Row: {
           created_at: string
           document_id: string
           full_text: string
           id: string
+          page_image: string | null
           page_number: number
           text_items: Json
           user_id: string | null
@@ -123,6 +195,7 @@ export type Database = {
           document_id: string
           full_text: string
           id?: string
+          page_image?: string | null
           page_number: number
           text_items: Json
           user_id?: string | null
@@ -132,6 +205,7 @@ export type Database = {
           document_id?: string
           full_text?: string
           id?: string
+          page_image?: string | null
           page_number?: number
           text_items?: Json
           user_id?: string | null

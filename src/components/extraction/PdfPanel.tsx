@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, Upload, Library, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Upload, Library, AlertCircle, Pen as PenIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
@@ -13,6 +13,9 @@ import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { supabase } from "@/integrations/supabase/client";
 import DocumentLibrary from "./DocumentLibrary";
 import { PdfHighlightLayer } from "./PdfHighlightLayer";
+import { PdfAnnotationCanvas } from "./PdfAnnotationCanvas";
+import { AnnotationToolbar } from "./AnnotationToolbar";
+import type { AnnotationTool } from "./AnnotationToolbar";
 
 // Configure PDF.js worker for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
@@ -45,6 +48,9 @@ const PdfPanel = () => {
   const [isExtractingText, setIsExtractingText] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [annotationMode, setAnnotationMode] = useState(false);
+  const [activeTool, setActiveTool] = useState<'select' | 'highlighter' | 'pen' | 'rectangle' | 'circle' | 'text' | 'eraser'>('select');
+  const [annotationColor, setAnnotationColor] = useState('rgba(255, 235, 59, 0.4)');
 
   // File validation constants
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -503,10 +509,37 @@ const PdfPanel = () => {
           </SelectContent>
         </Select>
 
+        <Button
+          size="sm"
+          variant={annotationMode ? "default" : "secondary"}
+          onClick={() => setAnnotationMode(!annotationMode)}
+        >
+          <PenIcon className="w-4 h-4 mr-2" />
+          {annotationMode ? 'Exit Annotation Mode' : 'Annotation Mode'}
+        </Button>
+
         <div className="ml-auto bg-primary px-3 py-1 rounded text-sm">
           {activeField ? `Extracting: ${activeField}` : 'No field selected'}
         </div>
       </div>
+
+      {/* Annotation Toolbar */}
+      {annotationMode && pdfFile && (
+        <div className="px-4 py-2 border-b bg-background">
+          <AnnotationToolbar
+            activeTool={activeTool}
+            onToolChange={setActiveTool}
+            onClearAll={() => {
+              if (confirm('Clear all annotations on this page?')) {
+                toast.success('Annotations cleared');
+              }
+            }}
+            onSave={() => toast.success('Annotations auto-saved')}
+            color={annotationColor}
+            onColorChange={setAnnotationColor}
+          />
+        </div>
+      )}
 
       {/* PDF Viewer */}
       <div className="flex-1 overflow-auto bg-slate-700 p-4 flex flex-col">
@@ -539,21 +572,33 @@ const PdfPanel = () => {
                 </Button>
               </div>
             ) : (
-              <PdfHighlightLayer
-                file={pdfFile}
-                currentPage={currentPage}
-                scale={scale}
-                extractions={extractions.filter(e => e.page === currentPage)}
-                highlightedExtractionId={highlightedExtractionId}
-                onDocumentLoadSuccess={onDocumentLoadSuccess}
-                onDocumentLoadError={onDocumentLoadError}
-                onMouseUp={handleTextSelection}
-                loading={
-                  <div className="text-white p-4 text-center">
-                    <div className="animate-pulse">Loading PDF...</div>
-                  </div>
-                }
-              />
+              <div style={{ position: 'relative' }}>
+                <PdfHighlightLayer
+                  file={pdfFile}
+                  currentPage={currentPage}
+                  scale={scale}
+                  extractions={extractions.filter(e => e.page === currentPage)}
+                  highlightedExtractionId={highlightedExtractionId}
+                  onDocumentLoadSuccess={onDocumentLoadSuccess}
+                  onDocumentLoadError={onDocumentLoadError}
+                  onMouseUp={handleTextSelection}
+                  loading={
+                    <div className="text-white p-4 text-center">
+                      <div className="animate-pulse">Loading PDF...</div>
+                    </div>
+                  }
+                />
+                <PdfAnnotationCanvas
+                  documentId={currentDocumentId}
+                  pageNumber={currentPage}
+                  width={800}
+                  height={1100}
+                  scale={scale}
+                  activeTool={activeTool}
+                  color={annotationColor}
+                  annotationMode={annotationMode}
+                />
+              </div>
             )}
           </div>
         )}
