@@ -6,6 +6,15 @@ export default {
     "./index.html",
     "./src/**/*.{ts,tsx}",
   ],
+  safelist: [
+    // Only safelist absolutely necessary classes
+    'react-pdf__Document',
+    'react-pdf__Page',
+    'react-pdf__Page__canvas',
+    'react-pdf__Page__textContent',
+    'react-pdf__Page__annotations',
+    'textLayer',
+  ],
   prefix: "",
   theme: {
     container: {
