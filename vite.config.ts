@@ -8,12 +8,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
-    allowedHosts: [
-      "localhost",
-      "8080-iwni9n0g7vkragio5687l-6532622b.e2b.dev",
-      "8081-iwni9n0g7vkragio5687l-6532622b.e2b.dev",
-      /.*-iwni9n0g7vkragio5687l-6532622b\.e2b\.dev$/ // Allow any port on this sandbox
-    ],
+    allowedHosts: 'all',
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
