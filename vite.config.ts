@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     allowedHosts: 'all',
   },
+  preview: {
+    host: "0.0.0.0",
+    port: 4173,
+  },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {

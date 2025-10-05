@@ -35,9 +35,9 @@ export const ValidatedField = ({
     }
   }, [formData[name], name, formData, validateField]);
 
-  const hasError = validations.some(v => v.type === 'error');
-  const hasWarning = validations.some(v => v.type === 'warning');
-  const hasSuccess = validations.some(v => v.type === 'success') && !hasError && !hasWarning;
+  const hasError = validations?.some?.(v => v.type === 'error') || false;
+  const hasWarning = validations?.some?.(v => v.type === 'warning') || false;
+  const hasSuccess = validations?.some?.(v => v.type === 'success') && !hasError && !hasWarning;
 
   const getIcon = () => {
     if (hasError) return <AlertCircle className="w-4 h-4 text-destructive" />;
@@ -65,7 +65,7 @@ export const ValidatedField = ({
           hasSuccess && "border-green-500 focus-visible:ring-green-500"
         )}
       />
-      {validations.length > 0 && (
+      {validations && validations.length > 0 && (
         <div className="space-y-1">
           {validations.map((validation, idx) => (
             <div key={idx} className="text-xs space-y-0.5">
