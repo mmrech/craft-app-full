@@ -4,6 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Clinical Data Extraction System - Personal Use Version (No Authentication)",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -37,6 +41,7 @@
     "react-hook-form": "^7.61.1",
     "react-pdf": "^7.7.1",
     "sonner": "^1.7.4",
+    "next-themes": "^0.3.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "xlsx": "^0.18.5",
