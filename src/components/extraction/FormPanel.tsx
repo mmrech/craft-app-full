@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Check, Circle } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
-import UserMenu from "./UserMenu";
+
 import Step1StudyId from "./steps/Step1StudyId";
 import Step2PICOT from "./steps/Step2PICOT";
 import Step3Baseline from "./steps/Step3Baseline";
@@ -106,9 +106,8 @@ const FormPanel = () => {
   return (
     <div className="w-[35%] bg-background overflow-y-auto">
       <div className="p-6 pb-24">
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2">
           <h1 className="text-2xl font-bold">Clinical Study Master Extraction</h1>
-          <UserMenu />
         </div>
         <p className="text-sm text-muted-foreground mb-4">
           Click a field, then highlight text in the PDF to extract with full traceability.
