@@ -13,16 +13,42 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(
-  SUPABASE_URL || '',
-  SUPABASE_PUBLISHABLE_KEY || '',
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
+// Create a mock client for local operation to prevent any network calls
+const mockClient = {
+  auth: {
+    getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    signUp: () => Promise.resolve({ data: null, error: null }),
+    signInWithPassword: () => Promise.resolve({ data: null, error: null }),
+    signOut: () => Promise.resolve({ error: null }),
+  },
+  from: () => ({
+    select: () => ({ 
+      eq: () => ({ 
+        order: () => Promise.resolve({ data: [], error: null }),
+        limit: () => Promise.resolve({ data: [], error: null }),
+        single: () => Promise.resolve({ data: null, error: null })
+      }),
+      limit: () => Promise.resolve({ data: [], error: null })
+    }),
+    insert: () => Promise.resolve({ data: null, error: null }),
+    upsert: () => Promise.resolve({ data: null, error: null }),
+    update: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
+    delete: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
+  }),
+  storage: {
+    from: () => ({
+      upload: () => Promise.resolve({ data: null, error: null }),
+      createSignedUrl: () => Promise.resolve({ data: { signedUrl: '' }, error: null }),
+      getBucket: () => Promise.resolve({ data: null, error: null }),
+    })
+  },
+  functions: {
+    invoke: () => Promise.resolve({ data: null, error: new Error('AI functions disabled in local mode') })
   }
-);
+};
+
+export const supabase = mockClient as any;
 
 // Connection health check (disabled for local operation)
 export const checkConnection = async (): Promise<boolean> => {
