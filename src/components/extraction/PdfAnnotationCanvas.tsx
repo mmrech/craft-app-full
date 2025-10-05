@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Canvas as FabricCanvas, Rect, Circle, Textbox, PencilBrush } from "fabric";
-import { supabase } from "@/integrations/supabase/client";
+// Supabase removed for local-only operation
 import { useToast } from "@/hooks/use-toast";
 import type { AnnotationTool } from "./AnnotationToolbar";
 
@@ -49,11 +49,38 @@ export const PdfAnnotationCanvas = ({
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Get current user
+  // Helper function to save annotations to localStorage
+  const saveAnnotationToStorage = async (annotationData: any) => {
+    if (!documentId) return;
+    
+    try {
+      const storageKey = `annotations_${documentId}_${pageNumber}`;
+      const existingAnnotations = localStorage.getItem(storageKey);
+      const annotations = existingAnnotations ? JSON.parse(existingAnnotations) : [];
+      
+      // Create annotation object similar to Supabase structure
+      const newAnnotation = {
+        id: `local_${Date.now()}_${Math.random()}`,
+        document_id: documentId,
+        page_number: pageNumber,
+        annotation_type: annotationData.annotation_type,
+        fabric_data: annotationData.fabric_data,
+        color: annotationData.color,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+      };
+      
+      annotations.push(newAnnotation);
+      localStorage.setItem(storageKey, JSON.stringify(annotations));
+      console.log('Annotation saved to localStorage');
+    } catch (error) {
+      console.error('Error saving annotation to localStorage:', error);
+    }
+  };
+
+  // For local operation, use a fixed user ID
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id || null);
-    });
+    setUserId('local-user');
   }, []);
 
   // Initialize Fabric canvas with dynamic sizing
@@ -90,21 +117,17 @@ export const PdfAnnotationCanvas = ({
     if (!fabricCanvasRef.current || !documentId) return;
 
     const loadAnnotations = async () => {
-      const { data, error } = await supabase
-        .from('pdf_annotations')
-        .select('*')
-        .eq('document_id', documentId)
-        .eq('page_number', pageNumber);
+      // Load annotations from localStorage for local operation
+      try {
+        const savedAnnotations = localStorage.getItem(`annotations_${documentId}_${pageNumber}`);
+        const data = savedAnnotations ? JSON.parse(savedAnnotations) : [];
+        
+        console.log('Loaded annotations from localStorage:', data.length);
 
-      if (error) {
-        console.error('Error loading annotations:', error);
-        return;
-      }
+        const canvas = fabricCanvasRef.current;
+        if (!canvas) return;
 
-      const canvas = fabricCanvasRef.current;
-      if (!canvas) return;
-
-      canvas.clear();
+        canvas.clear();
 
       data?.forEach((annotation) => {
         const fabricData = annotation.fabric_data as any;
@@ -125,7 +148,10 @@ export const PdfAnnotationCanvas = ({
         }
       });
 
-      canvas.renderAll();
+        canvas.renderAll();
+      } catch (error) {
+        console.error('Error loading annotations from localStorage:', error);
+      }
     };
 
     loadAnnotations();
@@ -190,14 +216,11 @@ export const PdfAnnotationCanvas = ({
             strokeWidth: path.strokeWidth,
           };
 
-          await supabase.from('pdf_annotations').insert([{
-            document_id: documentId,
-            page_number: pageNumber,
+          await saveAnnotationToStorage({
             annotation_type: 'drawing',
             fabric_data: fabricData as any,
             color: color,
-            user_id: userId,
-          }]);
+          });
         };
         
         canvas.on('path:created' as any, onPathCreated);
@@ -271,14 +294,11 @@ export const PdfAnnotationCanvas = ({
               strokeWidth: rect.strokeWidth,
             };
 
-            await supabase.from('pdf_annotations').insert([{
-              document_id: documentId,
-              page_number: pageNumber,
+            await saveAnnotationToStorage({
               annotation_type: activeTool === 'highlighter' ? 'highlight' : 'shape',
               fabric_data: fabricData as any,
               color: color,
-              user_id: userId,
-            }]);
+            });
           } else {
             // Remove tiny rectangles
             canvas.remove(rect);
@@ -324,14 +344,11 @@ export const PdfAnnotationCanvas = ({
             strokeWidth: circle.strokeWidth,
           };
 
-          await supabase.from('pdf_annotations').insert([{
-            document_id: documentId,
-            page_number: pageNumber,
+          await saveAnnotationToStorage({
             annotation_type: 'shape',
             fabric_data: fabricData as any,
             color: color,
-            user_id: userId,
-          }]);
+          });
         };
         
         canvas.on('mouse:down' as any, onMouseDown);
@@ -366,14 +383,11 @@ export const PdfAnnotationCanvas = ({
             fill: text.fill,
           };
 
-          await supabase.from('pdf_annotations').insert([{
-            document_id: documentId,
-            page_number: pageNumber,
+          await saveAnnotationToStorage({
             annotation_type: 'text',
             fabric_data: fabricData as any,
             color: color,
-            user_id: userId,
-          }]);
+          });
         };
         
         canvas.on('mouse:down' as any, onMouseDown);

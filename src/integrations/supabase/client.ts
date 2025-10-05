@@ -24,13 +24,8 @@ export const supabase = createClient<Database>(
   }
 );
 
-// Connection health check
+// Connection health check (disabled for local operation)
 export const checkConnection = async (): Promise<boolean> => {
-  try {
-    const { error } = await supabase.from('clinical_extractions').select('count').limit(1);
-    return !error;
-  } catch (error) {
-    console.error('Supabase connection check failed:', error);
-    return false;
-  }
+  // Always return true for local operation
+  return true;
 };
