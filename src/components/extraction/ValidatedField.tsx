@@ -35,8 +35,8 @@ export const ValidatedField = ({
     }
   }, [formData[name], name, formData, validateField]);
 
-  const hasError = validations?.some?.(v => v.type === 'error') || false;
-  const hasWarning = validations?.some?.(v => v.type === 'warning') || false;
+  const hasError = validations?.some?.(v => v.type === 'error');
+  const hasWarning = validations?.some?.(v => v.type === 'warning');
   const hasSuccess = validations?.some?.(v => v.type === 'success') && !hasError && !hasWarning;
 
   const getIcon = () => {
