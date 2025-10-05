@@ -1,0 +1,26 @@
+{
+  "name": "@medextract/electron",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Clinical Data Extraction System - Electron Desktop App",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite --config vite.config.electron.ts",
+    "build": "vite build --config vite.config.electron.ts && electron-builder",
+    "build:win": "vite build --config vite.config.electron.ts && electron-builder --win",
+    "build:mac": "vite build --config vite.config.electron.ts && electron-builder --mac",
+    "build:linux": "vite build --config vite.config.electron.ts && electron-builder --linux",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@medextract/shared": "workspace:*",
+    "electron-updater": "^6.1.7"
+  },
+  "devDependencies": {
+    "@types/electron": "^1.6.12",
+    "electron": "^38.2.1",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.4"
+  }
+}

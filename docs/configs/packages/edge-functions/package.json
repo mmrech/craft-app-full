@@ -1,0 +1,16 @@
+{
+  "name": "@medextract/functions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Clinical Data Extraction System - Supabase Edge Functions",
+  "type": "module",
+  "scripts": {
+    "deploy": "supabase functions deploy --project-ref $SUPABASE_PROJECT_REF",
+    "deploy:extract": "supabase functions deploy extract-clinical-data --project-ref $SUPABASE_PROJECT_REF",
+    "deploy:validate": "supabase functions deploy validate-clinical-data --project-ref $SUPABASE_PROJECT_REF",
+    "type-check": "deno check functions/*/index.ts"
+  },
+  "dependencies": {
+    "@medextract/shared": "workspace:*"
+  }
+}
