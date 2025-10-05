@@ -65,7 +65,7 @@ export const ValidatedField = ({
           hasSuccess && "border-green-500 focus-visible:ring-green-500"
         )}
       />
-      {validations && validations.length > 0 && (
+      {validations.length > 0 && (
         <div className="space-y-1">
           {validations.map((validation, idx) => (
             <div key={idx} className="text-xs space-y-0.5">
