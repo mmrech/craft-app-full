@@ -15,6 +15,25 @@ interface PdfAnnotationCanvasProps {
   annotationMode: boolean;
 }
 
+// Helper to get cursor style for each tool
+const getCursorForTool = (tool: AnnotationTool): string => {
+  switch (tool) {
+    case 'pen':
+    case 'highlighter':
+      return 'crosshair';
+    case 'rectangle':
+    case 'circle':
+      return 'crosshair';
+    case 'text':
+      return 'text';
+    case 'eraser':
+      return 'not-allowed';
+    case 'select':
+    default:
+      return 'default';
+  }
+};
+
 export const PdfAnnotationCanvas = ({
   documentId,
   pageNumber,
@@ -37,24 +56,34 @@ export const PdfAnnotationCanvas = ({
     });
   }, []);
 
-  // Initialize Fabric canvas
+  // Initialize Fabric canvas with dynamic sizing
   useEffect(() => {
     if (!canvasRef.current) return;
 
+    const scaledWidth = width * scale;
+    const scaledHeight = height * scale;
+
     const canvas = new FabricCanvas(canvasRef.current, {
-      width: width * scale,
-      height: height * scale,
+      width: scaledWidth,
+      height: scaledHeight,
       selection: annotationMode,
       backgroundColor: 'transparent',
     });
 
+    // Initialize brush for drawing mode
+    const brush = new PencilBrush(canvas);
+    brush.width = 2;
+    canvas.freeDrawingBrush = brush;
+
     fabricCanvasRef.current = canvas;
+
+    console.log('Canvas initialized:', { width: scaledWidth, height: scaledHeight, scale });
 
     return () => {
       canvas.dispose();
       fabricCanvasRef.current = null;
     };
-  }, [width, height, scale]);
+  }, [width, height, scale, annotationMode]);
 
   // Load annotations from database
   useEffect(() => {
@@ -102,34 +131,82 @@ export const PdfAnnotationCanvas = ({
     loadAnnotations();
   }, [documentId, pageNumber, scale, annotationMode]);
 
-  // Handle tool changes
+  // Handle tool changes with proper cleanup
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
 
-    canvas.isDrawingMode = false;
-    canvas.selection = annotationMode;
+    // Store handler references for cleanup
+    const handlers: Array<{ event: any; handler: any }> = [];
+    
+    // Cleanup function
+    const cleanup = () => {
+      // Remove all event listeners
+      handlers.forEach(({ event, handler }) => {
+        canvas.off(event as any, handler);
+      });
+      handlers.length = 0;
+      
+      // Reset drawing mode
+      canvas.isDrawingMode = false;
+      
+      // Reset selection
+      canvas.selection = annotationMode && activeTool === 'select';
+    };
 
+    // Apply new tool settings
     if (!annotationMode) {
       canvas.getObjects().forEach((obj) => {
         obj.selectable = false;
         obj.evented = false;
       });
+      canvas.defaultCursor = getCursorForTool(activeTool);
       canvas.renderAll();
-      return;
+      return cleanup;
     }
 
+    // Set cursor for the active tool
+    canvas.defaultCursor = getCursorForTool(activeTool);
+
     switch (activeTool) {
-      case 'pen':
+      case 'pen': {
         canvas.isDrawingMode = true;
-        const brush = new PencilBrush(canvas);
-        brush.color = color;
-        brush.width = 2;
-        canvas.freeDrawingBrush = brush;
+        if (canvas.freeDrawingBrush) {
+          canvas.freeDrawingBrush.color = color;
+          canvas.freeDrawingBrush.width = 2;
+        }
+        
+        // Save path after drawing
+        const onPathCreated = async (e: any) => {
+          if (!documentId || !userId || !e.path) return;
+          
+          const path = e.path;
+          const fabricData = {
+            type: 'path',
+            path: path.path,
+            left: path.left! / scale,
+            top: path.top! / scale,
+            stroke: path.stroke,
+            strokeWidth: path.strokeWidth,
+          };
+
+          await supabase.from('pdf_annotations').insert([{
+            document_id: documentId,
+            page_number: pageNumber,
+            annotation_type: 'drawing',
+            fabric_data: fabricData as any,
+            color: color,
+            user_id: userId,
+          }]);
+        };
+        
+        canvas.on('path:created' as any, onPathCreated);
+        handlers.push({ event: 'path:created', handler: onPathCreated });
         break;
+      }
 
       case 'highlighter':
-      case 'rectangle':
+      case 'rectangle': {
         let isDrawing = false;
         let rect: Rect | null = null;
         let startX = 0;
@@ -137,18 +214,23 @@ export const PdfAnnotationCanvas = ({
 
         const onMouseDown = (e: any) => {
           if (!e.pointer) return;
+          const pointer = canvas.getPointer(e.e);
           isDrawing = true;
-          startX = e.pointer.x;
-          startY = e.pointer.y;
+          startX = pointer.x;
+          startY = pointer.y;
 
+          // Highlighter uses transparent fill, rectangle uses stroke only
+          const isHighlighter = activeTool === 'highlighter';
+          
           rect = new Rect({
             left: startX,
             top: startY,
             width: 0,
             height: 0,
-            fill: color,
-            stroke: color.replace('0.4', '1'),
-            strokeWidth: 2,
+            fill: isHighlighter ? color : 'transparent',
+            stroke: isHighlighter ? 'transparent' : color.replace('0.4', '1'),
+            strokeWidth: isHighlighter ? 0 : 2,
+            selectable: false,
           });
           canvas.add(rect);
         };
@@ -156,10 +238,15 @@ export const PdfAnnotationCanvas = ({
         const onMouseMove = (e: any) => {
           if (!isDrawing || !rect || !e.pointer) return;
           
-          const width = e.pointer.x - startX;
-          const height = e.pointer.y - startY;
+          const pointer = canvas.getPointer(e.e);
+          const width = pointer.x - startX;
+          const height = pointer.y - startY;
           
-          rect.set({ width, height });
+          rect.set({ width: Math.abs(width), height: Math.abs(height) });
+          
+          if (width < 0) rect.set({ left: startX + width });
+          if (height < 0) rect.set({ top: startY + height });
+          
           canvas.renderAll();
         };
 
@@ -171,44 +258,56 @@ export const PdfAnnotationCanvas = ({
 
           isDrawing = false;
 
-          // Save to database
-          const fabricData = {
-            type: 'rect',
-            left: rect.left! / scale,
-            top: rect.top! / scale,
-            width: rect.width! / scale,
-            height: rect.height! / scale,
-            fill: rect.fill,
-            stroke: rect.stroke,
-            strokeWidth: rect.strokeWidth,
-          };
+          // Only save if rectangle has meaningful size
+          if (rect.width! > 5 && rect.height! > 5) {
+            const fabricData = {
+              type: 'rect',
+              left: rect.left! / scale,
+              top: rect.top! / scale,
+              width: rect.width! / scale,
+              height: rect.height! / scale,
+              fill: rect.fill,
+              stroke: rect.stroke,
+              strokeWidth: rect.strokeWidth,
+            };
 
-          await supabase.from('pdf_annotations').insert([{
-            document_id: documentId,
-            page_number: pageNumber,
-            annotation_type: activeTool === 'highlighter' ? 'highlight' : 'shape',
-            fabric_data: fabricData as any,
-            color: color,
-            user_id: userId,
-          }]);
+            await supabase.from('pdf_annotations').insert([{
+              document_id: documentId,
+              page_number: pageNumber,
+              annotation_type: activeTool === 'highlighter' ? 'highlight' : 'shape',
+              fabric_data: fabricData as any,
+              color: color,
+              user_id: userId,
+            }]);
+          } else {
+            // Remove tiny rectangles
+            canvas.remove(rect);
+          }
 
           rect = null;
         };
 
-        canvas.on('mouse:down', onMouseDown);
-        canvas.on('mouse:move', onMouseMove);
-        canvas.on('mouse:up', onMouseUp);
+        canvas.on('mouse:down' as any, onMouseDown);
+        canvas.on('mouse:move' as any, onMouseMove);
+        canvas.on('mouse:up' as any, onMouseUp);
+        
+        handlers.push({ event: 'mouse:down', handler: onMouseDown });
+        handlers.push({ event: 'mouse:move', handler: onMouseMove });
+        handlers.push({ event: 'mouse:up', handler: onMouseUp });
         break;
+      }
 
-      case 'circle':
-        canvas.on('mouse:down', async (e: any) => {
+      case 'circle': {
+        const onMouseDown = async (e: any) => {
           if (!e.pointer || !documentId || !userId) return;
+          
+          const pointer = canvas.getPointer(e.e);
 
           const circle = new Circle({
-            left: e.pointer.x,
-            top: e.pointer.y,
+            left: pointer.x - 30,
+            top: pointer.y - 30,
             radius: 30,
-            fill: color,
+            fill: 'transparent',
             stroke: color.replace('0.4', '1'),
             strokeWidth: 2,
           });
@@ -233,16 +332,22 @@ export const PdfAnnotationCanvas = ({
             color: color,
             user_id: userId,
           }]);
-        });
+        };
+        
+        canvas.on('mouse:down' as any, onMouseDown);
+        handlers.push({ event: 'mouse:down', handler: onMouseDown });
         break;
+      }
 
-      case 'text':
-        canvas.on('mouse:down', async (e: any) => {
+      case 'text': {
+        const onMouseDown = async (e: any) => {
           if (!e.pointer || !documentId || !userId) return;
+          
+          const pointer = canvas.getPointer(e.e);
 
           const text = new Textbox('Type here...', {
-            left: e.pointer.x,
-            top: e.pointer.y,
+            left: pointer.x,
+            top: pointer.y,
             width: 200,
             fontSize: 16,
             fill: color.replace('0.4', '1'),
@@ -269,43 +374,56 @@ export const PdfAnnotationCanvas = ({
             color: color,
             user_id: userId,
           }]);
-        });
+        };
+        
+        canvas.on('mouse:down' as any, onMouseDown);
+        handlers.push({ event: 'mouse:down', handler: onMouseDown });
         break;
+      }
 
-      case 'eraser':
-        canvas.on('mouse:down', async (e: any) => {
+      case 'eraser': {
+        const onMouseDown = async (e: any) => {
           const target = e.target;
           if (!target) return;
 
           canvas.remove(target);
           
-          // Delete from database (would need to track annotation IDs)
           toast({
             title: "Annotation removed",
             description: "The annotation has been deleted.",
           });
-        });
+        };
+        
+        canvas.on('mouse:down' as any, onMouseDown);
+        handlers.push({ event: 'mouse:down', handler: onMouseDown });
         break;
+      }
 
       case 'select':
-      default:
+      default: {
+        canvas.selection = true;
         canvas.getObjects().forEach((obj) => {
           obj.selectable = true;
           obj.evented = true;
         });
         break;
+      }
     }
 
     canvas.renderAll();
+    
+    // Return cleanup function
+    return cleanup;
   }, [activeTool, color, annotationMode, documentId, pageNumber, scale, userId, toast]);
 
   return (
     <canvas
       ref={canvasRef}
-      className="absolute top-0 left-0 pointer-events-auto"
+      className="absolute top-0 left-0"
       style={{
         zIndex: annotationMode ? 15 : 5,
         pointerEvents: annotationMode ? 'auto' : 'none',
+        cursor: annotationMode ? getCursorForTool(activeTool) : 'default',
       }}
     />
   );

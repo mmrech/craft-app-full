@@ -51,6 +51,7 @@ const PdfPanel = () => {
   const [annotationMode, setAnnotationMode] = useState(false);
   const [activeTool, setActiveTool] = useState<'select' | 'highlighter' | 'pen' | 'rectangle' | 'circle' | 'text' | 'eraser'>('select');
   const [annotationColor, setAnnotationColor] = useState('rgba(255, 235, 59, 0.4)');
+  const [pdfDimensions, setPdfDimensions] = useState({ width: 800, height: 1100 });
 
   // File validation constants
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -579,7 +580,19 @@ const PdfPanel = () => {
                   scale={scale}
                   extractions={extractions.filter(e => e.page === currentPage)}
                   highlightedExtractionId={highlightedExtractionId}
-                  onDocumentLoadSuccess={onDocumentLoadSuccess}
+                  onDocumentLoadSuccess={(e) => {
+                    onDocumentLoadSuccess(e);
+                    // Capture actual PDF dimensions from rendered page
+                    setTimeout(() => {
+                      const pageCanvas = document.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
+                      if (pageCanvas) {
+                        setPdfDimensions({
+                          width: pageCanvas.width / scale,
+                          height: pageCanvas.height / scale,
+                        });
+                      }
+                    }, 100);
+                  }}
                   onDocumentLoadError={onDocumentLoadError}
                   onMouseUp={handleTextSelection}
                   loading={
@@ -591,8 +604,8 @@ const PdfPanel = () => {
                 <PdfAnnotationCanvas
                   documentId={currentDocumentId}
                   pageNumber={currentPage}
-                  width={800}
-                  height={1100}
+                  width={pdfDimensions.width}
+                  height={pdfDimensions.height}
                   scale={scale}
                   activeTool={activeTool}
                   color={annotationColor}
