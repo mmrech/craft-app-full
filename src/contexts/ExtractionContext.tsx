@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface Extraction {
@@ -120,9 +119,10 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
     return () => clearTimeout(autoSaveTimeout);
   }, [formData, currentStep]);
 
-  // Load saved draft on mount
+  // Load saved draft and extractions on mount
   useEffect(() => {
     try {
+      // Load draft data
       const saved = localStorage.getItem('extraction_draft');
       if (saved) {
         const { formData: savedData, currentStep: savedStep, timestamp } = JSON.parse(saved);
@@ -141,8 +141,15 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
           });
         }
       }
+
+      // Load saved extractions
+      const savedExtractions = localStorage.getItem('saved_extractions');
+      if (savedExtractions) {
+        const extractions = JSON.parse(savedExtractions);
+        setExtractions(extractions);
+      }
     } catch (error) {
-      console.error('Failed to load draft:', error);
+      console.error('Failed to load saved data:', error);
     }
   }, []);
 
@@ -184,30 +191,21 @@ export const ExtractionProvider = ({ children }: { children: ReactNode }) => {
     // Add to local state immediately
     addExtraction(extraction);
     
-    // Save to database if document is tracked
-    if (!currentDocumentId) {
-      console.warn('No document ID set, skipping database save');
-      return;
-    }
-
+    // For personal use, we'll just save to localStorage
+    console.log('Extraction saved locally:', extraction);
+    
+    // Save extractions to localStorage for persistence
     try {
-      const { error } = await supabase
-        .from('clinical_extractions')
-        .insert({
-          document_id: currentDocumentId,
-          step_number: currentStep + 1,
-          field_name: extraction.fieldName,
-          extracted_text: extraction.text,
-          page_number: extraction.page,
-          coordinates: extraction.coordinates,
-          method: extraction.method
-        });
-
-      if (error) {
-        console.error('Error saving extraction:', error);
-      }
+      const savedExtractions = JSON.parse(localStorage.getItem('saved_extractions') || '[]');
+      const newExtraction: Extraction = {
+        ...extraction,
+        id: Date.now().toString(),
+        timestamp: Date.now()
+      };
+      savedExtractions.push(newExtraction);
+      localStorage.setItem('saved_extractions', JSON.stringify(savedExtractions));
     } catch (error) {
-      console.error('Error saving extraction:', error);
+      console.error('Error saving extraction to localStorage:', error);
     }
   };
 
