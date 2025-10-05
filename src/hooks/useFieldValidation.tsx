@@ -25,8 +25,9 @@ export const useFieldValidation = () => {
     }));
   }, []);
 
-  const getFieldValidation = useCallback((fieldName: string): ValidationResult => {
-    return validationState[fieldName] || { isValid: true };
+  const getFieldValidation = useCallback((fieldName: string): ValidationResult[] => {
+    const validation = validationState[fieldName];
+    return [validation].filter(v => v && !v.isValid);
   }, [validationState]);
 
   const clearValidation = useCallback((fieldName: string) => {
